@@ -806,6 +806,22 @@ function buildTunnel() {
   const n = Math.floor(L / 6), lampG = new THREE.BoxGeometry(0.28, 0.12, 1.4), lamps = new THREE.InstancedMesh(lampG, basic(0xffa64d), n * LX.length), mtx = new THREE.Matrix4();
   for (let i = 0; i < n; i++) LX.forEach((x, j) => { mtx.makeTranslation(x, y0 + ey, -(T.s0 + 3 + i * 6)); lamps.setMatrixAt(i * LX.length + j, mtx); });
   tunnelGrp.add(lamps);
+  // 비상 대피 통로(피난연결통로): 가운데 벽에 250m마다 문과 녹색 '비상구' 표시등 (쌍굴이면 맞은편 터널 쪽에도)
+  {
+    const doorM = lambert(0x50645a), frameM = lambert(0x2a2c2e);
+    const signM = new THREE.MeshBasicMaterial({ map: texFrom(256, 96, g => {
+      g.fillStyle = '#0f9d4a'; g.fillRect(0, 0, 256, 96); g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.font = 'bold 54px "IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif'; g.fillText('비상구', 128, 50);
+    }) });
+    const sides = TW ? [1, -1] : [1];
+    for (let sp = T.s0 + 125; sp < T.s1 - 50; sp += 250) sides.forEach(sg => {
+      const x = sg * 0.15, z = -sp, face = sg > 0 ? Math.PI / 2 : -Math.PI / 2;
+      const fr = new THREE.Mesh(new THREE.BoxGeometry(0.06, 2.5, 1.7), frameM); fr.position.set(x + sg * 0.03, y0 + 1.25, z); tunnelGrp.add(fr);   // 문틀
+      const dr = new THREE.Mesh(new THREE.BoxGeometry(0.05, 2.3, 1.4), doorM); dr.position.set(x + sg * 0.06, y0 + 1.15, z); tunnelGrp.add(dr);    // 문
+      const sgn = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.42), signM); sgn.rotation.y = face; sgn.position.set(x + sg * 0.1, y0 + 2.85, z); tunnelGrp.add(sgn);   // 표시등
+      const gl = halo(1.8, 0.5); gl.material.color.setHex(0x22dd66); gl.position.set(x + sg * 0.25, y0 + 2.85, z); tunnelGrp.add(gl);
+    });
+  }
   // 출구: 터널 안에서 보면 바깥이 하얗게 날아가 보인다
   // 입구(portal): 바깥에서 보이는 산비탈 외벽 + 새까맣게 보이는 입구 안쪽
   if (T.portal) {
