@@ -29,5 +29,18 @@ jobs:
           path: '.'
       # Wait until the uploaded artifact is listed (deploy-pages sometimes finds 0 artifacts right after upload)
       - run: sleep 15
+      # GitHub sometimes keeps the previous Pages deployment "in progress" for a while; retry after waiting
       - id: deployment
+        continue-on-error: true
+        uses: actions/deploy-pages@v5
+      - if: steps.deployment.outcome == 'failure'
+        run: sleep 180
+      - id: deployment2
+        if: steps.deployment.outcome == 'failure'
+        continue-on-error: true
+        uses: actions/deploy-pages@v5
+      - if: steps.deployment.outcome == 'failure' && steps.deployment2.outcome == 'failure'
+        run: sleep 420
+      - id: deployment3
+        if: steps.deployment.outcome == 'failure' && steps.deployment2.outcome == 'failure'
         uses: actions/deploy-pages@v5
