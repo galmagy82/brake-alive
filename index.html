@@ -33,6 +33,10 @@
 }
 [hidden] { display: none !important; }
 html, body { height: 100%; margin: 0; overflow: hidden; }
+#rotate { display: none; position: fixed; inset: 0; z-index: 9999; background: var(--asphalt); color: var(--paper); flex-direction: column; align-items: center; justify-content: center; gap: 18px; font-size: 18px; font-weight: 700; text-align: center; padding: 24px; }
+#rotate svg { width: 72px; height: 72px; animation: rot90 1.8s ease-in-out infinite; }
+@keyframes rot90 { 0%, 20% { transform: rotate(0deg); } 60%, 100% { transform: rotate(-90deg); } }
+@media (orientation: portrait) and (pointer: coarse) { #rotate { display: flex; } }
 body { background: var(--asphalt); color: var(--paper); font-family: var(--f-body); font-size: 15px; -webkit-tap-highlight-color: transparent; }
 #app { position: fixed; inset: 0; }
 #gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; transition: filter .9s ease; }
@@ -228,6 +232,8 @@ button.card:hover, button.card:focus-visible { border-color: var(--paint); trans
     <div id="mission">화물차를 추월해 40초 안에 도착하라</div>
     <div id="hint" hidden></div>
   </div>
+
+  <div id="rotate"><svg viewBox="0 0 24 24" fill="none" stroke="#f2b705" stroke-width="1.6"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></svg>화면을 가로로 돌려주세요</div>
 
   <div id="mcard" hidden>
     <div class="mc-label">미션</div>
@@ -2456,9 +2462,13 @@ function goFull() {
   if (!matchMedia('(pointer: coarse)').matches) return;
   try {
     const r = (el.requestFullscreen || el.webkitRequestFullscreen || function () {}).call(el, { navigationUI: 'hide' });
-    if (r && r.catch) r.catch(() => {});
+    if (r && r.then) r.then(lockLand, () => {});
   } catch (e) {}
 }
+function lockLand() {
+  try { const o = screen.orientation; if (o && o.lock) o.lock('landscape').catch(() => {}); } catch (e) {}
+}
+const needRotate = () => matchMedia('(orientation: portrait) and (pointer: coarse)').matches;
 $('titleStart').addEventListener('click', goFull);
 $('startBtn').addEventListener('click', goFull);
 $('toTitle').addEventListener('click', showTitle);
@@ -2541,6 +2551,10 @@ let last = performance.now(), idleT = 0;
 function loop(now) {
   requestAnimationFrame(loop);
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (needRotate() && state !== 'title' && state !== 'select' && state !== 'brief') {
+    engine(0, false); brakeSound(false, 0);
+    return;
+  }
   if (state === 'drive') {
     G.acc += dt;
     while (G.acc >= STEP && state === 'drive') { step(STEP); G.acc -= STEP; }
