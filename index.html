@@ -1764,7 +1764,37 @@ function addBrakeLights(car) {
   else g.add(box(0.5, 0.06, 0.04, red, 0, 1.46, 1.32));   // 보조 제동등 (뒷유리 위)
   g.visible = false; car.inner.add(g); car.brake = g;
 }
-function makePed() {   // 보행자: 몸통·머리·팔다리. 팔다리는 어깨·엉덩이를 축으로 흔든다 (키는 outer.scale로 조절)
+// 보행자(새 모습): 둥근 몸통·어깨·골반, 목·머리·머리카락, 가늘어지는 팔다리와 손·신발. 앞이 -z
+// 움직임 구조(outer → spin → body, 어깨·엉덩이 축의 팔다리)와 옷 색 재질(coat·pants)은 예전과 같다
+const PED_SKIN_M = lambert(0xd9b49a), PED_SHOE_M = lambert(0x1e1e22);
+const PED_HAIR_MS = [0x1a1714, 0x2b2119, 0x3b2a1e, 0x141414, 0x5a4636].map(c => lambert(c));
+let pedHairK = 0;
+function makePed() {
+  if (LOOK_OLD) return makePedOld();
+  const outer = new THREE.Group(), spin = new THREE.Group(), g = new THREE.Group();
+  outer.add(spin); spin.add(g); g.position.y = -0.9;
+  const coat = lambert(0x5a6e8c), pants = lambert(0x2b2f36), hair = PED_HAIR_MS[pedHairK++ % PED_HAIR_MS.length];
+  const put = (geo, mat, x, y, z, sx, sy, sz, parent) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); if (sx) m.scale.set(sx, sy, sz); (parent || g).add(m); return m; };
+  put(new THREE.CylinderGeometry(0.205, 0.165, 0.56, 14), coat, 0, 1.2, 0, 1, 1, 0.62);          // 몸통: 어깨 넓고 허리 좁게, 앞뒤로 납작
+  [-1, 1].forEach(sg => put(new THREE.SphereGeometry(0.075, 10, 8), coat, sg * 0.2, 1.45, 0));     // 둥근 어깨
+  put(new THREE.SphereGeometry(1, 14, 10), pants, 0, 0.93, 0, 0.19, 0.11, 0.13);                    // 골반
+  put(new THREE.CylinderGeometry(0.048, 0.055, 0.09, 10), PED_SKIN_M, 0, 1.53, 0);                  // 목
+  put(new THREE.SphereGeometry(0.115, 16, 12), PED_SKIN_M, 0, 1.665, 0, 0.92, 1.06, 1);             // 머리
+  put(new THREE.SphereGeometry(0.124, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.56), hair, 0, 1.675, 0.012, 0.95, 1.06, 1.04);   // 머리카락 (윗머리·뒷머리)
+  const limb = (x, y) => { const pv = new THREE.Group(); pv.position.set(x, y, 0); g.add(pv); return pv; };
+  const legL = limb(-0.1, 0.9), legR = limb(0.1, 0.9), armL = limb(-0.255, 1.46), armR = limb(0.255, 1.46);
+  [legL, legR].forEach(pv => {
+    put(new THREE.CylinderGeometry(0.078, 0.052, 0.82, 10), pants, 0, -0.41, 0, 0, 0, 0, pv);         // 허벅지에서 발목으로 가늘어지는 다리
+    put(new THREE.BoxGeometry(0.11, 0.08, 0.25), PED_SHOE_M, 0, -0.85, -0.05, 0, 0, 0, pv);            // 신발 (앞으로 튀어나옴)
+  });
+  [armL, armR].forEach(pv => {
+    put(new THREE.CylinderGeometry(0.052, 0.04, 0.55, 8), coat, 0, -0.28, 0, 0, 0, 0, pv);             // 팔
+    put(new THREE.SphereGeometry(0.045, 8, 6), PED_SKIN_M, 0, -0.59, 0, 0, 0, 0, pv);                   // 손
+  });
+  outer.visible = false; scene.add(outer);
+  return { outer, spin, body: g, legL, legR, armL, armR, coat, pants };
+}
+function makePedOld() {   // 예전 나무토막 인형 (?look=old). 보행자: 몸통·머리·팔다리. 팔다리는 어깨·엉덩이를 축으로 흔든다 (키는 outer.scale로 조절)
   const outer = new THREE.Group(), spin = new THREE.Group(), g = new THREE.Group();
   outer.add(spin); spin.add(g); g.position.y = -0.9;   // spin: 몸 가운데(허리 높이)를 회전축으로 쓰기 위한 그룹
   const coat = lambert(0x5a6e8c), pants = lambert(0x2b2f36), skin = lambert(0xd9b49a);
