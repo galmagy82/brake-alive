@@ -1,6 +1,6 @@
 {
-  "name": "All You Need Is Brake — 사고 예측 시뮬레이터",
-  "short_name": "Brake",
+  "name": "Brake Alive — 사고 예측 시뮬레이터",
+  "short_name": "Brake Alive",
   "start_url": "./",
   "scope": "./",
   "display": "fullscreen",

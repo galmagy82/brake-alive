@@ -8,8 +8,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Brake">
-<title>All You Need Is Brake</title>
+<meta name="apple-mobile-web-app-title" content="Brake Alive">
+<title>Brake Alive</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -126,9 +126,8 @@ kbd { font-family: var(--f-num); font-size: 12px; background: var(--asphalt-3); 
 /* 시작 화면 */
 #title { background: linear-gradient(to bottom, rgba(10,13,17,.1), rgba(10,13,17,.75)); }
 .title-wrap { display: grid; justify-items: center; gap: 22px; text-align: center; }
-.title-logo { font-family: var(--f-num); font-weight: 600; font-size: clamp(48px, 13vw, 104px); letter-spacing: .14em; line-height: 1; color: var(--paper); text-shadow: 0 4px 30px rgba(0,0,0,.6); }
+.title-logo { font-family: var(--f-num); font-weight: 600; font-size: clamp(44px, 11vw, 92px); letter-spacing: .14em; line-height: 1.05; color: var(--paper); text-shadow: 0 4px 30px rgba(0,0,0,.6); }
 .title-logo span { display: block; }
-.title-logo .lead { font-size: .3em; letter-spacing: .3em; color: var(--paper); margin-bottom: .35em; }
 .title-logo .key { color: var(--danger); }
 .title-wrap .btn { font-size: 26px; padding: 14px 48px; }
 .title-tag { display: grid; gap: 6px; margin-top: -6px; text-shadow: 0 2px 16px rgba(0,0,0,.7); text-wrap: balance; }
@@ -239,7 +238,7 @@ button.card:hover, button.card:focus-visible { border-color: var(--paint); trans
   .inj-stat { font-size: 11px; }
   .inj-out { font-size: 22px; }
   .title-wrap { gap: 12px; }
-  .title-logo { font-size: 56px; }
+  .title-logo { font-size: 44px; }
   .title-tag strong { font-size: 18px; }
   .title-tag span { font-size: 12px; }
   .title-wrap .btn { font-size: 20px; padding: 9px 36px; }
@@ -305,7 +304,7 @@ button.card:hover, button.card:focus-visible { border-color: var(--paint); trans
 
   <section class="screen" id="title">
     <div class="title-wrap">
-      <h1 class="title-logo"><span class="lead">ALL YOU NEED IS</span><span class="key">BRAKE</span></h1>
+      <h1 class="title-logo"><span class="key">BRAKE</span><span>ALIVE</span></h1>
       <p class="title-tag"><strong>사고 예측 시뮬레이터</strong></p>
       <button class="btn" id="titleStart">시작</button>
     </div>
@@ -2484,7 +2483,7 @@ function showResult() {
     body = '';
   }
   $('rVerdict').textContent = verdict; $('rVerdict').className = 'verdict ' + vcls;
-  $('rEyebrow').textContent = `ALL YOU NEED IS BRAKE · ${SC.id} ${SC.title}`;
+  $('rEyebrow').textContent = `BRAKE ALIVE · ${SC.id} ${SC.title}`;
   $('rTitle').textContent = title; $('rSub').textContent = sub; $('rBody').textContent = body;
   $('rInjury').textContent = '';   // 사망 확률 표는 사고 직후 화면에서만 보여 준다 (결과 화면에서는 반복하지 않음)
   show('rewatchBtn', e.kind === 'crash'); show('nextBtn', !!nextScenario());
