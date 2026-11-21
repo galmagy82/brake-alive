@@ -22,5 +22,7 @@ jobs:
       - uses: actions/upload-pages-artifact@v5
         with:
           path: '.'
+      # Wait until the uploaded artifact is listed (deploy-pages sometimes finds 0 artifacts right after upload)
+      - run: sleep 15
       - id: deployment
         uses: actions/deploy-pages@v5
