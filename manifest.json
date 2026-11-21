@@ -1,6 +1,6 @@
 {
-  "name": "Fatal Crash — 사고 예측 시뮬레이터",
-  "short_name": "Fatal Crash",
+  "name": "데스티네이션 — 사고 예측 시뮬레이터",
+  "short_name": "데스티네이션",
   "start_url": "./",
   "scope": "./",
   "display": "fullscreen",
