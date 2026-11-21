@@ -1793,6 +1793,27 @@ function noiseBuf(ac, sec, fn) {
   for (let i = 0; i < len; i++) d[i] = fn(i / len, i);
   return buf;
 }
+// 충돌 소리 울림: 잔향(약 2초) + 메아리(0.32초 간격으로 점점 작아짐). 한 번 만들어 계속 쓴다
+function crashFx(ac) {
+  if (audio.crashFx) return audio.crashFx;
+  const inp = ac.createGain();
+  // 잔향: 코드로 만든 울림 데이터 (어둡게 깎은 잡음이 서서히 사라짐)
+  const sec = 2.0, len = Math.floor(ac.sampleRate * sec), ir = ac.createBuffer(2, len, ac.sampleRate);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = ir.getChannelData(ch); let lp = 0;
+    for (let i = 0; i < len; i++) { lp += ((Math.random() * 2 - 1) - lp) * 0.12; d[i] = lp * Math.pow(1 - i / len, 2.2) * 3; }
+  }
+  const conv = ac.createConvolver(); conv.buffer = ir;
+  const revG = ac.createGain(); revG.gain.value = 0.55;
+  inp.connect(conv); conv.connect(revG); revG.connect(ac.destination);
+  // 메아리: 되돌아오는 소리일수록 더 작고 더 어둡게
+  const dl = ac.createDelay(1.0); dl.delayTime.value = 0.32;
+  const fb = ac.createGain(); fb.gain.value = 0.38;
+  const dlp = ac.createBiquadFilter(); dlp.type = 'lowpass'; dlp.frequency.value = 900;
+  const echoG = ac.createGain(); echoG.gain.value = 0.45;
+  inp.connect(dl); dl.connect(dlp); dlp.connect(fb); fb.connect(dl); dlp.connect(echoG); echoG.connect(ac.destination);
+  return (audio.crashFx = inp);
+}
 function crashSound(k) {
   if (!audio || !soundOn) return;
   const ac = audio.ac, t0 = ac.currentTime + 0.005, R = Math.random;
@@ -1801,7 +1822,7 @@ function crashSound(k) {
   const out = ac.createDynamicsCompressor(); out.threshold.value = -14; out.ratio.value = 6; out.attack.value = 0.002; out.release.value = 0.25;
   const master = ac.createGain(); master.gain.value = 0.6 + 0.5 * k;
   const tone = ac.createBiquadFilter(); tone.type = 'lowpass'; tone.frequency.value = 1800; tone.Q.value = 0.5;   // 묵직하게: 높은 소리를 깎는다
-  out.connect(tone); tone.connect(master); master.connect(ac.destination);
+  out.connect(tone); tone.connect(master); master.connect(ac.destination); master.connect(crashFx(ac));
   const play = (buf, chain, at, gain) => {
     const src = ac.createBufferSource(); src.buffer = buf; const g = ac.createGain(); g.gain.value = gain;
     let node = src; chain.forEach(f => { node.connect(f); node = f; }); node.connect(g); g.connect(out); src.start(at);
