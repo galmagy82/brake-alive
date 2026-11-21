@@ -1799,21 +1799,23 @@ function crashSound(k) {
   k = clamp(k, 0.2, 1);
   // 전체 출력: 여러 소리가 겹쳐도 찢어지지 않게 압축
   const out = ac.createDynamicsCompressor(); out.threshold.value = -14; out.ratio.value = 6; out.attack.value = 0.002; out.release.value = 0.25;
-  const master = ac.createGain(); master.gain.value = 0.55 + 0.45 * k; out.connect(master); master.connect(ac.destination);
+  const master = ac.createGain(); master.gain.value = 0.6 + 0.5 * k;
+  const tone = ac.createBiquadFilter(); tone.type = 'lowpass'; tone.frequency.value = 1800; tone.Q.value = 0.5;   // 묵직하게: 높은 소리를 깎는다
+  out.connect(tone); tone.connect(master); master.connect(ac.destination);
   const play = (buf, chain, at, gain) => {
     const src = ac.createBufferSource(); src.buffer = buf; const g = ac.createGain(); g.gain.value = gain;
     let node = src; chain.forEach(f => { node.connect(f); node = f; }); node.connect(g); g.connect(out); src.start(at);
   };
   const filt = (type, f, q) => { const b = ac.createBiquadFilter(); b.type = type; b.frequency.value = f; if (q) b.Q.value = q; return b; };
-  // 1) 첫 충격: 아주 짧고 날카로운 잡음
-  play(noiseBuf(ac, 0.035, u => (R() * 2 - 1) * Math.pow(1 - u, 4)), [filt('highpass', 700)], t0, 1.0 * k);
+  // 1) 첫 충격: 짧고 두꺼운 "퍽" (중저음 잡음)
+  play(noiseBuf(ac, 0.06, u => (R() * 2 - 1) * Math.pow(1 - u, 3)), [filt('bandpass', 420, 0.8)], t0, 1.2 * k);
   // 2) 낮은 쿵: 음높이가 떨어지는 사인파 + 낮은 잡음
   {
     const o = ac.createOscillator(), g = ac.createGain(); o.type = 'sine';
-    o.frequency.setValueAtTime(120, t0); o.frequency.exponentialRampToValueAtTime(38, t0 + 0.3);
-    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.9 * k, t0 + 0.008); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.45);
-    o.connect(g); g.connect(out); o.start(t0); o.stop(t0 + 0.5);
-    play(noiseBuf(ac, 0.6, u => (R() * 2 - 1) * Math.pow(1 - u, 3)), [filt('lowpass', 220)], t0, 0.8 * k);
+    o.frequency.setValueAtTime(85, t0); o.frequency.exponentialRampToValueAtTime(28, t0 + 0.5);
+    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(1.3 * k, t0 + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.7);
+    o.connect(g); g.connect(out); o.start(t0); o.stop(t0 + 0.75);
+    play(noiseBuf(ac, 1.0, u => (R() * 2 - 1) * Math.pow(1 - u, 2.5)), [filt('lowpass', 150)], t0, 1.3 * k);
   }
   // 3) 금속 찌그러짐: 띄엄띄엄 튀는 잡음 알갱이를 공진 필터 여러 개에 통과시킨다
   {
@@ -1822,25 +1824,24 @@ function crashSound(k) {
       const env = Math.pow(1 - u, 1.6), dens = 0.02 + 0.2 * (1 - u);
       return (R() < dens ? (R() * 2 - 1) : (R() * 2 - 1) * 0.12) * env;
     });
-    [480 + R() * 300, 1100 + R() * 600, 2300 + R() * 900].forEach((f, i) => play(buf, [filt('bandpass', f, 3 + R() * 4)], t0 + 0.004 * i, [1.4, 1.1, 0.7][i] * k));
-    play(buf, [filt('highpass', 3500)], t0, 0.25 * k);   // 날카로운 긁힘
+    [180 + R() * 80, 380 + R() * 150, 800 + R() * 300].forEach((f, i) => play(buf, [filt('bandpass', f, 2 + R() * 3)], t0 + 0.004 * i, [1.3, 0.9, 0.45][i] * k));
   }
   // 4) 차체 울림: 배음이 어긋난 금속 울림 (짧고 작게)
   {
-    const f0 = 170 + R() * 140;
-    [1, 2.76, 5.4, 8.9].forEach((m, i) => {
+    const f0 = 70 + R() * 40;
+    [1, 2.76, 5.4].forEach((m, i) => {
       const o = ac.createOscillator(), g = ac.createGain(); o.type = 'sine'; o.frequency.value = f0 * m * (1 + (R() - 0.5) * 0.02);
-      const a = [0.12, 0.08, 0.05, 0.03][i] * k, d = 0.5 + 0.4 * k - i * 0.08;
+      const a = [0.14, 0.06, 0.025][i] * k, d = 0.6 + 0.4 * k - i * 0.12;
       g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(a, t0 + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t0 + d);
       o.connect(g); g.connect(out); o.start(t0); o.stop(t0 + d + 0.05);
     });
   }
   // 5) 파편: 충돌 뒤 0.1~1초 사이에 작은 조각들이 떨어지는 소리
   {
-    const n = Math.round(4 + 8 * k);
+    const n = Math.round(2 + 4 * k);
     for (let j = 0; j < n; j++) {
       const at = t0 + 0.1 + Math.pow(R(), 1.5) * (0.5 + 0.5 * k), len = 0.01 + R() * 0.03;
-      play(noiseBuf(ac, len, u => (R() * 2 - 1) * Math.pow(1 - u, 3)), [filt('bandpass', 2500 + R() * 4500, 6)], at, (0.15 + R() * 0.25) * k);
+      play(noiseBuf(ac, len, u => (R() * 2 - 1) * Math.pow(1 - u, 3)), [filt('bandpass', 700 + R() * 900, 4)], at, (0.12 + R() * 0.15) * k);
     }
   }
 }
@@ -1851,7 +1852,7 @@ function glassSound() {   // 유리가 깨지고 흩어지는 소리
     const buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
     for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2);
     const src = ac.createBufferSource(); src.buffer = buf; const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 2500 + Math.random() * 3000;
-    const g = ac.createGain(); g.gain.value = (k === 0 ? 0.5 : 0.22) * (1 - k / 12); src.connect(hp); hp.connect(g); g.connect(ac.destination); src.start(st);
+    const g = ac.createGain(); g.gain.value = (k === 0 ? 0.25 : 0.11) * (1 - k / 12); src.connect(hp); hp.connect(g); g.connect(ac.destination); src.start(st);
   }
 }
 
