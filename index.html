@@ -1170,7 +1170,7 @@ function buildAlley(asphalt, white) {
   ribbon(conc, -320, 1720, -HW, HW, 0.004);                           // 골목 바닥: 시멘트 포장
   sideAlleys().forEach(a => { const xa = a.side * HW, xb = a.side * (HW + a.len); ribbon(conc, a.s - a.w / 2, a.s + a.w / 2, Math.min(xa, xb), Math.max(xa, xb), 0.005, a.w); });   // 갈림 골목 바닥
   ribbon(conc, A - 4, A + 4, HW, HW + 12, 0.005, 8);                  // 필로티 주차장 바닥
-  ribbonMesh(conc, LOOK_OLD ? lambert(0x8a8780) : new THREE.MeshLambertMaterial({ color: 0xb4afa6, map: alleyFloorTex() }));
+  ribbonMesh(conc, LOOK_OLD ? lambert(0x8a8780) : new THREE.MeshLambertMaterial({ color: 0x404246, map: alleyFloorTex() }));
   buildNeighborhood();
 }
 function buildRoad() {
