@@ -2294,7 +2294,11 @@ const fatalRisk = dv => 1 / (1 + Math.exp(-(FAT_A + FAT_B * dv)));
 // 그 한 점에 맞추고, 기울기는 정면 곡선과 같게 둔 근사 곡선
 const SIDE_B = FAT_B, SIDE_A = Math.log(0.25 / 0.75) - SIDE_B * 48.28;
 const sideRisk = dv => 1 / (1 + Math.exp(-(SIDE_A + SIDE_B * dv)));
-const hitRisk = x => x.side ? sideRisk(x.dv) : fatalRisk(x.dv);
+// 충격이 큰 구간: 로지스틱 곡선은 자료가 거의 없는 높은 Δv에서 위험을 낮게 잡는다.
+// Joksch(1993) 경험식 P = (Δv / 31.74 m/s)^4 (= Δv / 114.3 km/h, 114km/h 이상은 100%)와 비교해 더 높은 값을 쓴다.
+// 두 식은 Δv 64km/h 부근에서 거의 같다(약 10%)
+const jokschRisk = dv => Math.min(1, Math.pow(dv / 114.26, 4));
+const hitRisk = x => Math.max(x.side ? sideRisk(x.dv) : fatalRisk(x.dv), jokschRisk(x.dv));
 // 충돌에 휘말린 사람마다: 충돌을 순서대로, 사망 확률은 각 충돌에서 살아남을 확률을 곱해 합친다
 function injuryRows() {
   if (G.end.type === 'ped') {   // 부딪힌 보행자마다: 차의 충돌 속도로 사망 확률
@@ -2349,7 +2353,9 @@ function crashUpdate(dt) {
       ? '사망 확률은 차에 치인 보행자의 평균 위험으로, <a href="https://doi.org/10.1016/j.aap.2012.07.022" target="_blank" rel="noopener">Tefft(2013), Accident Analysis &amp; Prevention</a>의 충돌 속도별 추정을 따릅니다. 나이가 많을수록 같은 속도에서도 위험이 더 큽니다.'
       : '충격은 충돌 순간 몸이 겪은 속도 변화(Δv)입니다. 사망 확률은 안전벨트를 맨 운전자 기준 추정치로, '
       + '<a href="https://doi.org/10.1080/15389588.2026.2717647" target="_blank" rel="noopener">Ayuningtyas 외(2026), Traffic Injury Prevention</a>'
-      + '의 승용차 정면충돌 분석(전체 자료 모델)을 따릅니다.'
+      + '의 승용차 정면충돌 분석(전체 자료 모델)을 따르고, 충격이 큰 구간은 자료가 적어 '
+      + '<a href="https://swov.nl/en/publicatie/velocity-change-and-fatality-risk-crash-rule-thumb" target="_blank" rel="noopener">Joksch(1993), Accident Analysis &amp; Prevention</a>'
+      + '의 경험식(위험 = (Δv ÷ 114km/h)⁴) 중 더 높은 값을 씁니다.'
       + (G.end.injury.some(x => x.hits.length > 1) ? ' 여러 번 부딪힌 경우는 각 충돌의 위험을 합친 추정치입니다.' : '')
       + ' 실제 결과는 차종, 나이, 충돌 각도에 따라 달라집니다.';
     setTimeout(() => { if (state === 'crashed') show('crash', true); }, 700);
