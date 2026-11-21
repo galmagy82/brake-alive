@@ -1524,6 +1524,7 @@ function chainStep(dt) {
     b.s += b.vs * dt; b.x = R.type === 'alley' ? clamp(b.x + b.vx * dt, -7, 7) : clamp(b.x + b.vx * dt, -(R.half + 60), R.half + 60); b.yaw += b.wr * dt;
   }
   if (R.type === 'alley') alleyWalls();
+  if (R.median || R.tunnel) roadWalls();
   chainCollide(false);
   G.peds.forEach(q => {
     const f = q.fly; if (!f) return;
@@ -1587,6 +1588,36 @@ function alleyWalls() {
       const d = b.dir * Math.cos(b.yaw) * 0 - b.dir * Math.sin(b.yaw) * sg, face = Math.abs(d) < 0.7 ? 'side' : d > 0 ? 'front' : 'rear';
       b.impacts.push({ t: G.t, other: 'wall', dv, speed: Math.hypot(v0[0], v0[1]), face });
       const rec = { t: G.t, a: b.id, b: 'wall', s: b.s, x: sg * R.half, vs: b.vs, sideA: face, sideB: 'none', dvA: dv, dvB: 0 };
+      rec.debris = makeDebris(rec, b, { id: 'wall' }); C.impacts.push(rec);
+      if (b.id === 'me') C.shakeT = C.tc;
+      crashSound(dv / 30);
+    }
+  }
+}
+// 고속도로(07): 중앙분리대와 터널 벽에 막힌다. 부딪히면 튕겨 나오며 속도를 잃는다 (골목 벽과 같은 방식)
+function roadWalls() {
+  const C = G.ch, T = R.tunnel;
+  for (const b of C.bodies) {
+    const e = bodyExt(b), inT = T && b.s > T.s0 && b.s < T.s1;
+    // 왼쪽: 중앙분리대(폭 0.5m) 또는 터널 왼쪽 벽(두께 0.3m). 오른쪽: 터널 안에서만 벽
+    const walls = [{ sg: -1, lim: (inT ? 0.15 : 0.25) + e.w, name: inT ? '터널 벽' : '중앙분리대' }];
+    if (inT) walls.push({ sg: 1, lim: R.half + 1.0 - 0.15 - e.w, name: '터널 벽' });
+    for (const W of walls) {
+      const sg = W.sg, over = sg < 0 ? b.x < W.lim : b.x > W.lim;
+      if (!over) { if (b.wallSide === sg) b.wallSide = 0; continue; }
+      b.x = W.lim;
+      const vn = sg * b.vx; if (vn <= 0) continue;
+      const v0 = [b.vs, b.vx];
+      b.vx = -sg * vn * 0.1;
+      const ft = Math.min(Math.abs(b.vs), 0.4 * vn * 1.1); b.vs -= Math.sign(b.vs) * ft;   // 벽면 마찰
+      b.wr += -sg * Math.sign(b.vs || 1) * vn * 0.08;   // 비껴 맞으면 조금 돈다
+      b.hit = true;
+      const dv = Math.hypot(b.vs - v0[0], b.vx - v0[1]);
+      if (b.wallSide === sg || dv < 2) { b.wallSide = sg; continue; }
+      b.wallSide = sg;
+      const d = -b.dir * Math.sin(b.yaw) * sg, face = Math.abs(d) < 0.7 ? 'side' : d > 0 ? 'front' : 'rear';
+      b.impacts.push({ t: G.t, other: 'wall', wn: W.name, dv, speed: Math.hypot(v0[0], v0[1]), face });
+      const rec = { t: G.t, a: b.id, b: 'wall', s: b.s, x: sg < 0 ? 0 : R.half + 1.0, vs: b.vs, sideA: face, sideB: 'none', dvA: dv, dvB: 0 };
       rec.debris = makeDebris(rec, b, { id: 'wall' }); C.impacts.push(rec);
       if (b.id === 'me') C.shakeT = C.tc;
       crashSound(dv / 30);
@@ -2311,7 +2342,7 @@ function injuryRows() {
   const thingOf = id => { if (id === 'me') return '내 차'; if (id === 'wall') return '건물'; if (id === 'truck') return SC.truck.label; if (id === 'bait') return SC.bait.label; const c = G.cars[+id.slice(1)]; return c && c.label ? c.label : '맞은편 차' + (plain.length > 1 ? ' ' + (plain.findIndex(b => b.id === id) + 1) : ''); };
   involved.sort((a, b) => (a.id === 'me' ? -1 : b.id === 'me' ? 1 : a.impacts[0].t - b.impacts[0].t));
   return involved.map(b => {
-    const hits = b.impacts.map(x => ({ with: thingOf(x.other), speed: Math.round(x.speed * 3.6), dv: Math.round(x.dv * 3.6), side: x.face === 'side' }));
+    const hits = b.impacts.map(x => ({ with: x.wn || thingOf(x.other), speed: Math.round(x.speed * 3.6), dv: Math.round(x.dv * 3.6), side: x.face === 'side' }));
     const risk = 1 - hits.reduce((q, x) => q * (1 - hitRisk(x)), 1);
     return { who: nameOf(b), hits, risk };
   });
