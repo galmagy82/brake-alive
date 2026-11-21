@@ -589,24 +589,24 @@ const SCENARIOS = [
     // 편도 2차로 고속도로 터널 (출구 400m). 맞은편 차로는 중앙분리대·터널 벽 너머라 갈 수 없다
     // 터널 안은 주황빛 나트륨등으로 어둡고, 출구는 하얗게 보인다. 출구를 나서는 순간 약 1.5초 동안 눈이 부셔 앞이 거의 안 보인다
     road: { type: 'city4', half: 7.0, flat: 10.5, xMin: 0.9, xMax: 6.3, hillStart: 1e6, hillEnd: 1e6 + 1, crest: 1e6, H: 0,
-      zoneStart: -1e4, zoneEnd: 1e4, goal: 460, tunnel: { s0: -160, s1: 400 }, median: true },
+      zoneStart: -1e4, zoneEnd: 1e4, goal: 510, tunnel: { s0: -160, s1: 400 }, median: true },
     // 나: 1차로, 시속 100km로 출발
     player: { s: 0, v: 27.8, x: 1.75 },
     // 정체 줄 2차로 안의 화물차 (시속 10km로 기어간다)
-    truck: { type: 'truck', label: '화물차', brakes: true, s: 424, x: 5.25, up: 2.78, flat: 2.78, down: 2.78, mass: 6, hl: 5, hw: 1.25, height: 3.5 },
+    truck: { type: 'truck', label: '화물차', brakes: true, s: 474, x: 5.25, up: 2.78, flat: 2.78, down: 2.78, mass: 6, hl: 5, hw: 1.25, height: 3.5 },
     oncoming: [
       // 2차로의 느린 차들 (시속 70km, 띄엄띄엄). 앞차가 느려지면 따라 느려진다
       ...[-60, 30, 120].map(s => ({ label: '2차로 차', fwd: true, follow: true, s, v: 19.4, x: 5.25 })),
-      // 터널 출구 바로 뒤부터 시작되는 정체: 두 차로 모두 시속 10km로 기어간다 (차 중심 간격 6.5m, 차 사이 약 2m)
-      ...Array.from({ length: 23 }, (_, k) => ({ label: '정체 차량', fwd: true, jam: true, s: 405 + k * 6.5, v: 2.78, x: 1.75 })),
-      ...[401, 407.5, 414, ...Array.from({ length: 18 }, (_, k) => 433 + k * 6.5)].map(s => ({ label: '정체 차량', fwd: true, jam: true, s, v: 2.78, x: 5.25 })),
+      // 터널 출구 약 50m 뒤부터 시작되는 정체: 두 차로 모두 시속 10km로 기어간다 (차 중심 간격 6.5m, 차 사이 약 2m)
+      ...Array.from({ length: 23 }, (_, k) => ({ label: '정체 차량', fwd: true, jam: true, s: 455 + k * 6.5, v: 2.78, x: 1.75 })),
+      ...[451, 457.5, 464, ...Array.from({ length: 18 }, (_, k) => 483 + k * 6.5)].map(s => ({ label: '정체 차량', fwd: true, jam: true, s, v: 2.78, x: 5.25 })),
     ],
     lessons: [
       '터널을 나오는 순간에는 밝은 빛 때문에 잠깐 앞이 보이지 않습니다.',
       '터널 출구가 가까워지면 미리 속도를 줄이고, 앞차와 거리를 넉넉히 두세요.',
       '터널 출구 바로 뒤에 정체가 있을 수 있다고 생각하고 달립니다.',
     ],
-    thumb: { s: 330, x: 1.75, lead: 424 },
+    thumb: { s: 330, x: 1.75, lead: 474 },
     hint: '누르고 있는 동안 왼쪽·오른쪽으로 움직이고, 떼면 그 자리를 유지합니다.',
     replay: 'plan',
     truckBody: '터널 출구 바로 뒤에서 정체가 시작되고 있었습니다. 눈이 부신 동안에는 앞차를 볼 수 없습니다.',
