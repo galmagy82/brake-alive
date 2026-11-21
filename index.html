@@ -191,8 +191,6 @@ button.card:hover, button.card:focus-visible { border-color: var(--paint); trans
 
 /* replay */
 #replayUI { position: absolute; inset: 0; pointer-events: none; }
-#rpBadge { position: absolute; top: calc(env(safe-area-inset-top, 0px) + 14px); left: max(16px, env(safe-area-inset-left, 0px));
-  font-family: var(--f-num); font-size: 12px; letter-spacing: .14em; padding: 4px 8px; background: var(--danger); color: #1a0806; font-weight: 600; }
 #rpSkip { position: absolute; top: calc(env(safe-area-inset-top, 0px) + 8px); right: max(16px, env(safe-area-inset-right, 0px)); pointer-events: auto; }
 #caption { position: absolute; left: 50%; top: 22%; transform: translateX(-50%); width: min(560px, calc(100% - 32px));
   background: var(--glass); border-left: 4px solid var(--paint); padding: 14px 18px; font-size: 17px; line-height: 1.55; font-weight: 500; animation: slidein .3s ease; }
@@ -254,10 +252,10 @@ button.card:hover, button.card:focus-visible { border-color: var(--paint); trans
   .nav-turn { font-size: 18px; }
   .nav-txt b { font-size: 14px; }
   .nav-txt small { font-size: 10px; }
-  #profileWrap { width: min(420px, 55%); padding: 4px 6px; left: auto; transform: none; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(env(safe-area-inset-bottom, 0px) + 8px); }
+  #profileWrap { width: min(420px, 55%); padding: 4px 6px; transform: none; left: max(16px, env(safe-area-inset-left, 0px)); top: calc(env(safe-area-inset-top, 0px) + 10px); bottom: auto; }
   #profileWrap .cap { display: none; }
   #profile { height: 70px; }
-  #caption { top: 16%; width: min(480px, calc(100% - 32px)); padding: 8px 12px; font-size: 14px; line-height: 1.45; }
+  #caption { top: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); width: min(480px, calc(100% - 32px)); padding: 8px 12px; font-size: 14px; line-height: 1.45; }
 }
 </style>
 
@@ -297,7 +295,6 @@ button.card:hover, button.card:focus-visible { border-color: var(--paint); trans
   </div>
 
   <div id="replayUI" hidden>
-    <div id="rpBadge">리플레이 ×0.5</div>
     <button class="btn ghost" id="rpSkip">건너뛰기</button>
     <div id="caption" hidden></div>
     <div id="profileWrap">
