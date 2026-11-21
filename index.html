@@ -1344,7 +1344,63 @@ const SHADOW_M = (() => {
 })();
 const SHADOW_G = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
 function addShadow(outer, w, l, z) { const m = new THREE.Mesh(SHADOW_G, SHADOW_M); m.scale.set(w, 1, l); m.position.set(0, 0.04, z); m.renderOrder = -1; outer.add(m); return m; }
-function makeCar(color, lights) {
+// 승용차 모양 3가지 (세단·SUV·해치백). u = 앞쪽(+)/뒤쪽(-) 위치, v = 높이. 옆모습을 차 폭만큼 밀어 만든다
+const CAR_TYPES = {
+  sedan: { L: 4.4, W: 1.8, r: 0.33, wz: 1.35, bw: 0.9,
+    body: [[-2.2, 0.3], [2.2, 0.3], [2.22, 0.55], [2.12, 0.76], [1.0, 0.9], [-1.45, 0.95], [-2.12, 0.93], [-2.22, 0.7]],
+    glass: [[0.98, 0.9], [0.22, 1.36], [-0.95, 1.38], [-1.5, 0.95]], roof: [0.2, -0.95, 1.37], light: 0.68, tail: 0.8 },
+  suv: { L: 4.6, W: 1.88, r: 0.38, wz: 1.42, bw: 0.94,
+    body: [[-2.3, 0.36], [2.3, 0.36], [2.32, 0.66], [2.24, 0.92], [1.25, 1.05], [-2.25, 1.08], [-2.32, 0.8]],
+    glass: [[1.22, 1.05], [0.55, 1.68], [-2.05, 1.7], [-2.22, 1.08]], roof: [0.55, -2.1, 1.69], light: 0.82, tail: 1.0 },
+  hatch: { L: 4.0, W: 1.76, r: 0.32, wz: 1.25, bw: 0.88,
+    body: [[-2.0, 0.3], [2.0, 0.3], [2.02, 0.55], [1.92, 0.74], [0.85, 0.88], [-1.85, 0.92], [-2.02, 0.68]],
+    glass: [[0.83, 0.88], [0.12, 1.4], [-1.25, 1.42], [-1.86, 0.92]], roof: [0.1, -1.3, 1.41], light: 0.66, tail: 0.82 },
+};
+const CAR_TYPE_ORDER = ['sedan', 'suv', 'hatch'];
+let carTypeK = 0;
+const CAR_GEO = {};   // 차종별 모양은 한 번만 만든다
+function sideProfile(pts, width, bevel) {   // 옆모습(u, v)을 폭 방향으로 밀어 만든 입체. 차 안쪽 좌표(앞이 -z)로 돌려 놓는다
+  const sh = new THREE.Shape(); pts.forEach(([u, v], i) => i ? sh.lineTo(u, v) : sh.moveTo(u, v));
+  const g = new THREE.ExtrudeGeometry(sh, { depth: width - 2 * bevel, bevelEnabled: bevel > 0, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 2, steps: 1 });
+  g.rotateY(Math.PI / 2); g.translate(-(width - 2 * bevel) / 2, 0, 0); return g;
+}
+function mergeGeo(list) {   // 같은 재질 부품을 하나로 합친다 (그리기 횟수 줄이기)
+  const pos = [], nor = [];
+  list.forEach(g0 => { const g = g0.index ? g0.toNonIndexed() : g0; pos.push(...g.attributes.position.array); nor.push(...g.attributes.normal.array); });
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); return g;
+}
+const boxGeo = (w, hh, l, x, y, z) => new THREE.BoxGeometry(w, hh, l).translate(x, y, z);
+function carGeo(type) {
+  if (CAR_GEO[type]) return CAR_GEO[type];
+  const T = CAR_TYPES[type], hw = T.W / 2, hz = T.L / 2, R = T.roof;
+  const paint = mergeGeo([
+    sideProfile(T.body, T.W, 0.05),
+    boxGeo(T.W - 0.28, 0.05, R[0] - R[1], 0, R[2], -(R[0] + R[1]) / 2),                           // 지붕
+    boxGeo(0.16, 0.1, 0.22, -hw - 0.06, T.body[4][1] + 0.08, -(T.body[4][0] - 0.1)),              // 사이드미러
+    boxGeo(0.16, 0.1, 0.22, hw + 0.06, T.body[4][1] + 0.08, -(T.body[4][0] - 0.1)),
+  ]);
+  const glass = sideProfile(T.glass, T.W - 0.24, 0.02);
+  const trim = mergeGeo([boxGeo(T.W + 0.02, 0.2, 0.14, 0, 0.42, -hz - 0.02), boxGeo(T.W + 0.02, 0.2, 0.14, 0, 0.42, hz + 0.02)]);   // 앞뒤 범퍼
+  const head = mergeGeo([-1, 1].map(sg => boxGeo(0.42, 0.12, 0.06, sg * (hw - 0.32), T.light, -hz - 0.06)));
+  const tail = mergeGeo([-1, 1].map(sg => boxGeo(0.4, 0.13, 0.06, sg * (hw - 0.3), T.tail, hz + 0.05)));
+  const plate = mergeGeo([boxGeo(0.5, 0.12, 0.03, 0, 0.5, -hz - 0.1), boxGeo(0.5, 0.12, 0.03, 0, 0.5, hz + 0.1)]);
+  return (CAR_GEO[type] = { paint, glass, trim, head, tail, plate });
+}
+const CAR_GLASS_M = new THREE.MeshPhongMaterial({ color: 0x1a2632, shininess: 90, specular: 0x9aa4ad });
+const CAR_TRIM_M = lambert(0x1d1f22), CAR_HEAD_M = basic(0xfff3d1), CAR_TAIL_M = basic(0x8a1010), CAR_PLATE_M = basic(0xe9e3c9);
+function makeCar(color, lights, type) {
+  if (LOOK_OLD) return makeCarOld(color, lights);
+  type = type || CAR_TYPE_ORDER[carTypeK++ % CAR_TYPE_ORDER.length];
+  const T = CAR_TYPES[type], G0 = carGeo(type), hz = T.L / 2;
+  const outer = new THREE.Group(), g = new THREE.Group(); outer.add(g);
+  g.add(new THREE.Mesh(G0.paint, new THREE.MeshPhongMaterial({ color, shininess: 60, specular: 0x3a3a3a })));   // 차체: 약한 광택
+  g.add(new THREE.Mesh(G0.glass, CAR_GLASS_M), new THREE.Mesh(G0.trim, CAR_TRIM_M), new THREE.Mesh(G0.head, CAR_HEAD_M), new THREE.Mesh(G0.tail, CAR_TAIL_M), new THREE.Mesh(G0.plate, CAR_PLATE_M));
+  wheels(g, [-T.bw + 0.06, T.bw - 0.06], [-T.wz, T.wz], T.r, T.bw);
+  if (lights) [-1, 1].forEach(sg => { const h0 = halo(1.7, 0.95); h0.position.set(sg * (T.W / 2 - 0.32), T.light, -hz - 0.14); g.add(h0); });
+  addShadow(outer, T.W + 0.5, T.L + 0.7, 0);
+  scene.add(outer); return { outer, inner: g, dims: T };
+}
+function makeCarOld(color, lights) {   // 예전 상자 모양 (?look=old)
   const outer = new THREE.Group(), g = new THREE.Group(); outer.add(g);
   g.add(box(1.8, 0.62, 4.3, lambert(color), 0, 0.64, 0));
   g.add(box(1.56, 0.56, 2.1, lambert(0x1a2129), 0, 1.22, 0.25));
@@ -1360,7 +1416,8 @@ function makeCar(color, lights) {
 }
 function addBlinker(car) {   // 왼쪽 방향지시등 (차 안쪽 좌표에서 왼쪽은 -x)
   const g = new THREE.Group(), amber = basic(0xffa31a);
-  [[-0.82, 0.76, -2.17], [-0.82, 0.82, 2.17], [-0.91, 0.72, -1.7]].forEach(([x, y, z]) => {
+  const D = car.dims, hz = D ? D.L / 2 + 0.08 : 2.17, ex = D ? -(D.W / 2 - 0.08) : -0.82;
+  [[ex, D ? D.light : 0.76, -hz], [ex, D ? D.tail : 0.82, hz], [ex - 0.09, D ? D.light + 0.02 : 0.72, -hz + 0.47]].forEach(([x, y, z]) => {
     g.add(box(0.18, 0.12, 0.06, amber, x, y, z));
     const hh = halo(1.2, 0.9); hh.material.color.setHex(0xffb340); hh.position.set(x - 0.05, y, z + (z > 0 ? 0.1 : -0.1)); g.add(hh);
   });
@@ -1478,16 +1535,18 @@ function truckDamage(kind, mesh) {   // null: 멀쩡함, 'rear': 뒤를 받힘, 
   u.bar.rotation.z = kind === 'rear' ? 0.22 : 0; u.bar.position.z = kind === 'rear' ? u.barZ - 0.28 : u.barZ;   // 휘어진 뒤 범퍼
 }
 let truckMesh = makeLead(SC.truck.type), baitMesh = null;   // baitMesh: 미끼 화물차 (있는 시나리오만)
-const playerMesh = makeCar(0x3b74d6, false);
+const playerMesh = makeCar(0x3b74d6, false, 'sedan');
 addBrakeLights(playerMesh);
 // 브레이크등: 밝은 빨간 등과 번짐. 밟고 있을 때만 켜진다 (차 안쪽 좌표: 뒤가 +z)
 function addBrakeLights(car) {
   const g = new THREE.Group(), red = basic(0xff2a1a);
-  [-0.6, 0.6].forEach(x => {
-    g.add(box(0.38, 0.14, 0.05, red, x, 0.8, 2.19));
-    const hh = halo(1.5, 0.9); hh.material.color.setHex(0xff2a1a); hh.position.set(x, 0.8, 2.32); g.add(hh);
+  const D = car.dims, rz = D ? D.L / 2 + 0.1 : 2.19, ty = D ? D.tail : 0.8, tx = D ? D.W / 2 - 0.3 : 0.6;
+  [-tx, tx].forEach(x => {
+    g.add(box(0.4, 0.14, 0.05, red, x, ty, rz));
+    const hh = halo(1.5, 0.9); hh.material.color.setHex(0xff2a1a); hh.position.set(x, ty, rz + 0.13); g.add(hh);
   });
-  g.add(box(0.5, 0.06, 0.04, red, 0, 1.46, 1.32));   // 보조 제동등 (뒷유리 위)
+  if (D) { const R = D.roof; g.add(box(0.5, 0.06, 0.04, red, 0, R[2] - 0.04, -R[1] + 0.05)); }   // 보조 제동등 (지붕 뒤끝)
+  else g.add(box(0.5, 0.06, 0.04, red, 0, 1.46, 1.32));   // 보조 제동등 (뒷유리 위)
   g.visible = false; car.inner.add(g); car.brake = g;
 }
 function makePed() {   // 보행자: 몸통·머리·팔다리. 팔다리는 어깨·엉덩이를 축으로 흔든다 (키는 outer.scale로 조절)
