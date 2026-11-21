@@ -1735,10 +1735,10 @@ function initAudio() {
     audio = { ac, osc, g, bg, sb1, sb2, absD, road, rg, clfo, nb, press: 0, lastT: ac.currentTime, chirped: false, kmh: 0 };
   } catch (e) { audio = null; }
 }
-function engine(v, on) {
+function engine(v, on, vol) {   // vol: 크기 배율 (기본 1, 카운트다운 중에는 0.5)
   if (!audio) return; const t = audio.ac.currentTime;
   audio.osc.frequency.setTargetAtTime(36 + v * 3.2, t, 0.12);
-  audio.g.gain.setTargetAtTime(on && soundOn ? 0.05 : 0, t, on ? 0.2 : 0.02);
+  audio.g.gain.setTargetAtTime(on && soundOn ? 0.05 * (vol ?? 1) : 0, t, on ? 0.2 : 0.02);
   if (!on) { brakeSound(false, 0); curbSound(false, 0); }
 }
 // 브레이크 소리: 경계 없이 속도에 따라 여러 층을 서서히 섞는다
@@ -2723,7 +2723,7 @@ function loop(now) {
     }
   } else if (state === 'countdown') {
     const p = G.p; G.cd -= dt;
-    drawWorld({ t: 0, ps: p.s, px: p.x, ts: G.truck.s, bs: G.bait ? G.bait.s : undefined, cs: G.cars.map(c => c.active ? c.s : NaN), cx: G.cars.map(c => c.x), cy: G.cars.map(c => c.yaw || 0), br: SC.signal ? 1 : 0, pd: pedFrame(), bk: bikeFrame() }, false); driveCamera(dt, p.s, p.x); engine(p.v * 0.3, true);
+    drawWorld({ t: 0, ps: p.s, px: p.x, ts: G.truck.s, bs: G.bait ? G.bait.s : undefined, cs: G.cars.map(c => c.active ? c.s : NaN), cx: G.cars.map(c => c.x), cy: G.cars.map(c => c.yaw || 0), br: SC.signal ? 1 : 0, pd: pedFrame(), bk: bikeFrame() }, false); driveCamera(dt, p.s, p.x); engine(p.v * 0.3, true, 0.5);
     drawNav(p.s, p.x);
     $('mcCount').textContent = Math.max(1, Math.ceil(G.cd));
     if (G.cd <= 0) { show('mcard', false); G.acc = 0; state = 'drive'; }
