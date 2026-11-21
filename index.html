@@ -1521,7 +1521,7 @@ function alleyWalls() {
       const rec = { t: G.t, a: b.id, b: 'wall', s: b.s, x: sg * R.half, vs: b.vs, sideA: face, sideB: 'none', dvA: dv, dvB: 0 };
       rec.debris = makeDebris(rec, b, { id: 'wall' }); C.impacts.push(rec);
       if (b.id === 'me') C.shakeT = C.tc;
-      thud(clamp(dv / 30, 0.25, 0.9));
+      crashSound(dv / 30);
     }
   }
 }
@@ -1596,7 +1596,7 @@ function resolveContact(a, b, ds, dx, ps, px, isNew) {
   rec.debris = makeDebris(rec, a, b);
   C.impacts.push(rec);
   if (a.id === 'me' || b.id === 'me') C.shakeT = C.tc;
-  thud(clamp((dvA + dvB) / 30, 0.25, 0.9));
+  crashSound((dvA + dvB) / 30);
 }
 function pushChainFrame() {
   const C = G.ch, me = C.byId.me, tb = C.byId.truck;
@@ -1785,6 +1785,64 @@ function thud(gain) {
   for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
   const src = ac.createBufferSource(); src.buffer = buf; const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 260;
   const g = ac.createGain(); g.gain.value = gain ?? 0.9; src.connect(lp); lp.connect(g); g.connect(ac.destination); src.start();
+}
+// 차량 충돌 소리 (합성): k = 세기 0~1. 여러 층을 겹친다
+// 1) 첫 충격 "빡"  2) 낮은 "쿵"  3) 금속이 찌그러지는 "콰지직"  4) 차체 울림  5) 파편이 떨어지는 소리
+function noiseBuf(ac, sec, fn) {
+  const len = Math.max(1, Math.floor(ac.sampleRate * sec)), buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = fn(i / len, i);
+  return buf;
+}
+function crashSound(k) {
+  if (!audio || !soundOn) return;
+  const ac = audio.ac, t0 = ac.currentTime + 0.005, R = Math.random;
+  k = clamp(k, 0.2, 1);
+  // 전체 출력: 여러 소리가 겹쳐도 찢어지지 않게 압축
+  const out = ac.createDynamicsCompressor(); out.threshold.value = -14; out.ratio.value = 6; out.attack.value = 0.002; out.release.value = 0.25;
+  const master = ac.createGain(); master.gain.value = 0.55 + 0.45 * k; out.connect(master); master.connect(ac.destination);
+  const play = (buf, chain, at, gain) => {
+    const src = ac.createBufferSource(); src.buffer = buf; const g = ac.createGain(); g.gain.value = gain;
+    let node = src; chain.forEach(f => { node.connect(f); node = f; }); node.connect(g); g.connect(out); src.start(at);
+  };
+  const filt = (type, f, q) => { const b = ac.createBiquadFilter(); b.type = type; b.frequency.value = f; if (q) b.Q.value = q; return b; };
+  // 1) 첫 충격: 아주 짧고 날카로운 잡음
+  play(noiseBuf(ac, 0.035, u => (R() * 2 - 1) * Math.pow(1 - u, 4)), [filt('highpass', 700)], t0, 1.0 * k);
+  // 2) 낮은 쿵: 음높이가 떨어지는 사인파 + 낮은 잡음
+  {
+    const o = ac.createOscillator(), g = ac.createGain(); o.type = 'sine';
+    o.frequency.setValueAtTime(120, t0); o.frequency.exponentialRampToValueAtTime(38, t0 + 0.3);
+    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.9 * k, t0 + 0.008); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.45);
+    o.connect(g); g.connect(out); o.start(t0); o.stop(t0 + 0.5);
+    play(noiseBuf(ac, 0.6, u => (R() * 2 - 1) * Math.pow(1 - u, 3)), [filt('lowpass', 220)], t0, 0.8 * k);
+  }
+  // 3) 금속 찌그러짐: 띄엄띄엄 튀는 잡음 알갱이를 공진 필터 여러 개에 통과시킨다
+  {
+    const dur = 0.25 + 0.45 * k;
+    const buf = noiseBuf(ac, dur, u => {
+      const env = Math.pow(1 - u, 1.6), dens = 0.02 + 0.2 * (1 - u);
+      return (R() < dens ? (R() * 2 - 1) : (R() * 2 - 1) * 0.12) * env;
+    });
+    [480 + R() * 300, 1100 + R() * 600, 2300 + R() * 900].forEach((f, i) => play(buf, [filt('bandpass', f, 3 + R() * 4)], t0 + 0.004 * i, [1.4, 1.1, 0.7][i] * k));
+    play(buf, [filt('highpass', 3500)], t0, 0.25 * k);   // 날카로운 긁힘
+  }
+  // 4) 차체 울림: 배음이 어긋난 금속 울림 (짧고 작게)
+  {
+    const f0 = 170 + R() * 140;
+    [1, 2.76, 5.4, 8.9].forEach((m, i) => {
+      const o = ac.createOscillator(), g = ac.createGain(); o.type = 'sine'; o.frequency.value = f0 * m * (1 + (R() - 0.5) * 0.02);
+      const a = [0.12, 0.08, 0.05, 0.03][i] * k, d = 0.5 + 0.4 * k - i * 0.08;
+      g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(a, t0 + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t0 + d);
+      o.connect(g); g.connect(out); o.start(t0); o.stop(t0 + d + 0.05);
+    });
+  }
+  // 5) 파편: 충돌 뒤 0.1~1초 사이에 작은 조각들이 떨어지는 소리
+  {
+    const n = Math.round(4 + 8 * k);
+    for (let j = 0; j < n; j++) {
+      const at = t0 + 0.1 + Math.pow(R(), 1.5) * (0.5 + 0.5 * k), len = 0.01 + R() * 0.03;
+      play(noiseBuf(ac, len, u => (R() * 2 - 1) * Math.pow(1 - u, 3)), [filt('bandpass', 2500 + R() * 4500, 6)], at, (0.15 + R() * 0.25) * k);
+    }
+  }
 }
 function glassSound() {   // 유리가 깨지고 흩어지는 소리
   if (!audio || !soundOn) return; const ac = audio.ac;
