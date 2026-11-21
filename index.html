@@ -216,6 +216,36 @@ button.card:hover, button.card:focus-visible { border-color: var(--paint); trans
   #caption { animation: none; }
   #gl { transition: none; }
 }
+/* 가로로 든 휴대폰처럼 높이가 낮은 화면: 창과 글자를 줄여 버튼이 스크롤 없이 보이게 */
+@media (max-height: 500px) and (orientation: landscape) {
+  .screen { align-items: safe center; padding-block: calc(env(safe-area-inset-top, 0px) + 8px) calc(env(safe-area-inset-bottom, 0px) + 8px); }
+  .panel { max-width: 760px; padding: 12px 18px 12px; gap: 8px; }
+  h1 { font-size: 32px; }
+  h2 { font-size: 28px; }
+  p { font-size: 13px; line-height: 1.45; }
+  .eyebrow { font-size: 11px; }
+  .mission-box { padding: 6px 10px; gap: 2px 10px; font-size: 13px; }
+  .mission-box b { font-size: 17px; }
+  .controls { gap: 4px 10px; font-size: 12px; }
+  kbd { font-size: 11px; padding: 1px 5px; }
+  .fine, .record { font-size: 11px; }
+  .btn { font-size: 18px; padding: 7px 20px; }
+  .btn.ghost { font-size: 15px; padding: 6px 14px; }
+  .btn.small { font-size: 13px; padding: 4px 10px; }
+  .row:has(#startBtn) { position: sticky; bottom: -12px; padding: 6px 0; margin-bottom: -6px; background: var(--glass); }
+  .inj-row { padding: 5px 0; }
+  .inj-who { font-size: 14px; }
+  .inj-stat { font-size: 11px; }
+  .inj-out { font-size: 22px; }
+  .title-wrap { gap: 12px; }
+  .title-logo { font-size: 40px; }
+  .title-tag strong { font-size: 18px; }
+  .title-tag span { font-size: 12px; }
+  .title-wrap .btn { font-size: 20px; padding: 9px 36px; }
+  .grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; }
+  .card .meta { padding: 6px 10px 8px; }
+  .card .ttl { font-size: 13px; }
+}
 </style>
 
 <div id="app">
