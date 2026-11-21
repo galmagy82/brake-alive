@@ -692,7 +692,7 @@ function buildWorld() {
     scene.remove(world);
     world.traverse(o => { if (o.geometry) o.geometry.dispose(); (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { if (m && m.map) m.map.dispose(); }); });   // 재질이 여러 개인 건물도 처리
   }
-  world = new THREE.Group(); scene.add(world); alleyBld = alleyHide = alleyFoot = null; tunnelExit = null; envIn = null;
+  world = new THREE.Group(); scene.add(world); alleyBld = alleyHide = alleyFoot = null; tunnelExit = tunnelGrp = tunnelFoot = null; envIn = null;
   buildGround(); buildRoad(); buildTrees(); buildGoal();
   if (R.type === 'city4') {
     if (R.crosswalk) { addCrosswalkSign(R.crosswalk - 4, R.half + 1.2); addCrosswalkSign(R.crosswalk + 4, -R.half - 1.2, true); }
@@ -710,18 +710,21 @@ function buildMedian() {
   if (T) { seg(-320, T.s0); seg(T.s1, 1720); } else seg(-320, 1720);
 }
 /* 터널: 벽·천장·나트륨등 + 출구의 하얀 빛 */
-let tunnelExit = null;
+let tunnelExit = null, tunnelGrp = null, tunnelFoot = null;
 function buildTunnel() {
   const T = R.tunnel, L = T.s1 - T.s0, mid = -(T.s0 + T.s1) / 2, y0 = h(T.s1), xr = R.half + 1.0, top = 6.5;
   const wallM = lambert(0x6f6a60), tileM = lambert(0xb8b09c), ceilM = lambert(0x2c2b29);
-  const add = (w, hh, x, y, m) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, hh, L), m); b.position.set(x, y0 + y, mid); world.add(b); };
+  // 리플레이(위에서 내려다봄)에서는 벽·천장·등을 숨기고, 벽 자리에 낮은 턱만 보여 준다
+  tunnelGrp = new THREE.Group(); world.add(tunnelGrp); tunnelFoot = new THREE.Group(); tunnelFoot.visible = false; world.add(tunnelFoot);
+  [0, xr].forEach(x => { const f = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.5, L), wallM); f.position.set(x, y0 + 0.25, mid); tunnelFoot.add(f); });
+  const add = (w, hh, x, y, m) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, hh, L), m); b.position.set(x, y0 + y, mid); tunnelGrp.add(b); };
   add(0.3, top, 0, top / 2, wallM); add(0.3, top, xr, top / 2, wallM);                 // 왼쪽(중앙)·오른쪽 벽
   add(0.04, 1.6, 0.17, 0.8, tileM); add(0.04, 1.6, xr - 0.17, 0.8, tileM);             // 벽 아래쪽 밝은 타일 띠
   add(xr + 0.3, 0.3, xr / 2, top + 0.15, ceilM);                                          // 천장
   // 나트륨등: 천장 양쪽에 6m 간격 (한 번에 그린다)
   const n = Math.floor(L / 6), lampG = new THREE.BoxGeometry(0.28, 0.12, 1.4), lamps = new THREE.InstancedMesh(lampG, basic(0xffa64d), n * 2), mtx = new THREE.Matrix4();
   for (let i = 0; i < n; i++) [0.9, xr - 0.9].forEach((x, j) => { mtx.makeTranslation(x, y0 + top - 0.1, -(T.s0 + 3 + i * 6)); lamps.setMatrixAt(i * 2 + j, mtx); });
-  world.add(lamps);
+  tunnelGrp.add(lamps);
   // 출구: 터널 안에서 보면 바깥이 하얗게 날아가 보인다
   tunnelExit = new THREE.Mesh(new THREE.PlaneGeometry(xr + 0.3, top), new THREE.MeshBasicMaterial({ color: 0xfffaf0, fog: false, transparent: true, opacity: 0.96, depthWrite: false }));
   tunnelExit.position.set(xr / 2, y0 + top / 2, -(T.s1 + 0.3)); world.add(tunnelExit);
@@ -729,7 +732,7 @@ function buildTunnel() {
 // 터널 안이면 어둡고 주황빛, 밖이면 원래 해 질 녘 빛
 let envIn = null;
 function tunnelEnv(ps) {
-  const T = R.tunnel, inside = !!T && ps > T.s0 && ps < T.s1 - 0.5;
+  const T = R.tunnel, inside = !!T && state !== 'replay' && ps > T.s0 && ps < T.s1 - 0.5;   // 리플레이는 바깥 밝기로
   if (tunnelExit) tunnelExit.visible = inside;
   if (inside === envIn) return; envIn = inside;
   hemiLight.color.setHex(inside ? 0xffa860 : 0xffd6b0); hemiLight.groundColor.setHex(inside ? 0x2a1a10 : 0x2e3a26); hemiLight.intensity = inside ? 0.32 : 0.8;
@@ -2484,6 +2487,7 @@ function captionFor(e) {
 let alleyBld = null, alleyHide = null, alleyFoot = null;   // 골목 주택가: 건물 / 배경(아파트·전봇대) / 건물 터 판
 function alleyReplayView(on) {   // 리플레이에서는 건물과 배경을 숨기고 건물 터만 보여 준다
   if (alleyBld) alleyBld.visible = !on; if (alleyHide) alleyHide.visible = !on; if (alleyFoot) alleyFoot.visible = on;
+  if (tunnelGrp) tunnelGrp.visible = !on; if (tunnelFoot) tunnelFoot.visible = on;   // 터널: 벽·천장 대신 벽 자리 턱만
 }
 function startReplay() {
   alleyReplayView(true);
