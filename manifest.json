@@ -1,6 +1,6 @@
 {
-  "name": "데스티네이션 — 사고 예측 시뮬레이터",
-  "short_name": "데스티네이션",
+  "name": "All You Need Is Brake — 사고 예측 시뮬레이터",
+  "short_name": "Brake",
   "start_url": "./",
   "scope": "./",
   "display": "fullscreen",
