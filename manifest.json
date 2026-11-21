@@ -1,5 +1,5 @@
 {
-  "name": "Fatal Crash — 브레이크 타이밍 시뮬레이터",
+  "name": "Fatal Crash — 사고 예측 시뮬레이터",
   "short_name": "Fatal Crash",
   "start_url": "./",
   "scope": "./",
