@@ -949,6 +949,49 @@ const WALL_TEX = (() => {   // 시멘트 블록 담장: 블록 40×20cm, 줄눈�
 })();
 // 건물 외벽 무늬: 한 칸 = 폭 3m × 한 층 2.9m. 벽돌·타일·미색 + 창문 (일부는 불 켜짐)
 const FACADE = {};
+// 외벽(새 모습): 256px 한 칸 = 폭 3m × 한 층. 재질별 디테일 + 창문 변형 3가지(v)
+function facadeMat2(kind, lit, v) {
+  const key = 'n' + kind + lit + v; if (FACADE[key]) return FACADE[key];
+  const r = rng(({ brick: 11, tile: 23, beige: 37, grey: 51 }[kind]) * 10 + v), W = 256, H = 248;
+  const t = texFrom(W, H, g => {
+    const base = { brick: [142, 74, 54], tile: [217, 212, 200], beige: [200, 180, 142], grey: [168, 166, 160] }[kind];
+    const rgb = (c, k) => `rgb(${Math.round(c[0] * k)},${Math.round(c[1] * k)},${Math.round(c[2] * k)})`;
+    g.fillStyle = rgb(base, 1); g.fillRect(0, 0, W, H);
+    if (kind === 'brick') {   // 벽돌마다 색이 조금씩 다르고, 줄눈은 밝은 회색
+      g.fillStyle = '#b5a898'; g.fillRect(0, 0, W, H);
+      for (let y = 0, row = 0; y < H; y += 12, row++) for (let x = row % 2 ? -16 : 0; x < W; x += 32) { g.fillStyle = rgb(base, 0.8 + r() * 0.35); g.fillRect(x + 1, y + 1, 30, 10); }
+    } else if (kind === 'tile') {   // 20px 타일, 장마다 밝기 조금씩 다르게
+      for (let y = 0; y < H; y += 20) for (let x = 0; x < W; x += 20) { g.fillStyle = rgb(base, 0.93 + r() * 0.1); g.fillRect(x + 1, y + 1, 18, 18); }
+    } else {   // 미장벽·콘크리트: 거친 점 무늬
+      for (let i = 0; i < 2600; i++) { g.fillStyle = `rgba(${r() < 0.5 ? '0,0,0' : '255,255,255'},${0.04 + r() * 0.06})`; g.fillRect(r() * W, r() * H, 2, 2); }
+      if (kind === 'grey') { g.fillStyle = 'rgba(0,0,0,.12)'; g.fillRect(0, 122, W, 2); [40, 128, 216].forEach(x => [60, 184].forEach(y => { g.beginPath(); g.arc(x, y, 3, 0, 7); g.fill(); })); }   // 거푸집 자국
+    }
+    // 창문: 변형 0 = 두 짝 창 + 방범창, 1 = 넓은 창 + 에어컨 실외기, 2 = 베란다 창 + 난간
+    const win = v === 2 ? [36, 52, 184, 150] : v === 1 ? [44, 64, 168, 104] : [60, 68, 136, 108];
+    const [wx, wy, ww, wh] = win;
+    if (kind !== 'brick') {   // 창 아래 빗물 얼룩
+      for (let i = 0; i < 7; i++) { const x = wx + 6 + r() * (ww - 12), len = 30 + r() * 70, gr = g.createLinearGradient(0, wy + wh, 0, wy + wh + len);
+        gr.addColorStop(0, 'rgba(40,36,30,.22)'); gr.addColorStop(1, 'rgba(40,36,30,0)'); g.fillStyle = gr; g.fillRect(x, wy + wh, 2 + r() * 4, len); }
+    }
+    g.fillStyle = '#dcdcd6'; g.fillRect(wx - 6, wy - 6, ww + 12, wh + 12);                    // 창틀
+    const glass = g.createLinearGradient(0, wy, 0, wy + wh);
+    if (lit) { glass.addColorStop(0, '#f2d58c'); glass.addColorStop(1, '#d9a85a'); } else { glass.addColorStop(0, '#7a93ab'); glass.addColorStop(0.45, '#46586a'); glass.addColorStop(1, '#2a333d'); }
+    g.fillStyle = glass; g.fillRect(wx, wy, ww, wh);
+    g.fillStyle = '#c9c9c3'; g.fillRect(wx + ww / 2 - 2, wy, 4, wh);                          // 가운데 창살
+    if (!lit && r() < 0.7) { g.fillStyle = ['rgba(190,170,140,.75)', 'rgba(150,160,175,.7)', 'rgba(200,190,175,.75)'][v]; g.fillRect(wx, wy, ww * 0.22, wh); g.fillRect(wx + ww * 0.78, wy, ww * 0.22, wh); }   // 커튼
+    g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(wx - 8, wy + wh + 6, ww + 16, 5);                // 창턱 그림자
+    g.fillStyle = '#e4e4de'; g.fillRect(wx - 8, wy + wh + 4, ww + 16, 3);                       // 창턱
+    if (v === 0) { g.fillStyle = 'rgba(55,55,55,.8)'; for (let x = wx; x < wx + ww; x += 10) g.fillRect(x, wy, 2, wh); }   // 방범창
+    if (v === 1) {   // 에어컨 실외기 (창 아래)
+      g.fillStyle = '#e8e8e4'; g.fillRect(wx + 20, wy + wh + 14, 64, 44); g.fillStyle = '#9a9a96'; g.beginPath(); g.arc(wx + 46, wy + wh + 36, 15, 0, 7); g.fill();
+      g.fillStyle = '#6a6a66'; for (let k = -12; k <= 12; k += 6) g.fillRect(wx + 33, wy + wh + 36 + k, 26, 2);
+    }
+    if (v === 2) { g.fillStyle = 'rgba(70,70,70,.9)'; g.fillRect(wx - 6, wy + wh - 40, ww + 12, 4); for (let x = wx - 4; x < wx + ww + 6; x += 12) g.fillRect(x, wy + wh - 40, 3, 40); }   // 베란다 난간
+    g.fillStyle = 'rgba(0,0,0,.22)'; g.fillRect(0, H - 10, W, 10); g.fillStyle = 'rgba(255,255,255,.12)'; g.fillRect(0, H - 12, W, 2);   // 층 사이 띠
+  });
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
+  return (FACADE[key] = new THREE.MeshLambertMaterial({ map: t }));
+}
 function facadeMat(kind, lit) {
   const key = kind + lit; if (FACADE[key]) return FACADE[key];
   const t = texFrom(128, 124, g => {
@@ -964,6 +1007,32 @@ function facadeMat(kind, lit) {
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   return (FACADE[key] = new THREE.MeshLambertMaterial({ map: t }));
 }
+// 골목 바닥(새 모습): 낡은 시멘트 포장. 512px = 12m (3m마다 줄눈), 가는 균열, 아스팔트 땜질, 기름·물 얼룩
+let ALLEY_FLOOR = null;
+function alleyFloorTex() {
+  if (ALLEY_FLOOR) return ALLEY_FLOOR;
+  const r = rng(909), N = 512;
+  const t = texFrom(N, N, g => {
+    g.fillStyle = '#c4c0b8'; g.fillRect(0, 0, N, N);
+    for (let i = 0; i < 9000; i++) { g.fillStyle = `rgba(${r() < 0.55 ? '0,0,0' : '255,255,255'},${0.03 + r() * 0.07})`; g.fillRect(r() * N, r() * N, 1 + r() * 2, 1 + r() * 2); }
+    for (let i = 0; i < 4; i++) {   // 아스팔트 땜질 자국
+      const cx = r() * N, cy = r() * N, w = 40 + r() * 90, hh = 24 + r() * 60; g.fillStyle = `rgba(45,46,48,${0.55 + r() * 0.25})`;
+      g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + w, cy + r() * 10); g.lineTo(cx + w - r() * 12, cy + hh); g.lineTo(cx + r() * 10, cy + hh - r() * 8); g.closePath(); g.fill();
+    }
+    for (let i = 0; i < 6; i++) {   // 기름·물 얼룩
+      const cx = r() * N, cy = r() * N, rad = 10 + r() * 34, gr = g.createRadialGradient(cx, cy, 0, cx, cy, rad);
+      gr.addColorStop(0, `rgba(30,28,26,${0.18 + r() * 0.2})`); gr.addColorStop(1, 'rgba(30,28,26,0)'); g.fillStyle = gr; g.fillRect(cx - rad, cy - rad, rad * 2, rad * 2);
+    }
+    g.strokeStyle = 'rgba(40,38,35,.55)'; g.lineWidth = 1;
+    for (let i = 0; i < 10; i++) {   // 가는 균열
+      let x = r() * N, y = r() * N; g.beginPath(); g.moveTo(x, y);
+      for (let k = 0; k < 6; k++) { x += (r() - 0.5) * 40; y += (r() - 0.3) * 30; g.lineTo(x, y); } g.stroke();
+    }
+    g.fillStyle = 'rgba(60,58,54,.6)'; for (let k = 0; k < N; k += 128) { g.fillRect(k, 0, 2, N); g.fillRect(0, k, N, 2); }   // 3m 줄눈
+  });
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy()); t.repeatM = 12;
+  return (ALLEY_FLOOR = t);
+}
 // 건물 상자: 옆면마다 무늬가 칸 수에 맞게 반복되도록 UV를 늘린다
 function building(group, sA, sB, xA, xB, hh, kind, lit, y0) {
   const W = Math.abs(xB - xA), D = Math.abs(sB - sA), g = new THREE.BoxGeometry(W, hh, D), uv = g.attributes.uv;
@@ -971,7 +1040,9 @@ function building(group, sA, sB, xA, xB, hh, kind, lit, y0) {
     const i = f * 4 + k, su = f < 2 ? D / 3 : f >= 4 ? W / 3 : 0.01, sv = f === 2 || f === 3 ? 0.01 : hh / 2.9;
     uv.setXY(i, uv.getX(i) * su, uv.getY(i) * sv);
   }
-  const fm = facadeMat(kind, lit), roof = lambert(0x6f6d68);
+  // 새 모습: 건물마다 창문 변형(3가지)을 위치로 정해 옆 건물과 다르게
+  const vh = Math.sin(sA * 12.9898 + xA * 78.233) * 43758.5, vv = Math.floor((vh - Math.floor(vh)) * 3);
+  const fm = LOOK_OLD ? facadeMat(kind, lit) : facadeMat2(kind, lit, vv), roof = lambert(0x6f6d68);
   const m = new THREE.Mesh(g, [fm, fm, roof, roof, fm, fm]); m.position.set((xA + xB) / 2, (y0 || 0) + hh / 2, -(sA + sB) / 2); group.add(m);
   return m;
 }
@@ -1096,7 +1167,7 @@ function buildAlley(asphalt, white) {
   ribbon(conc, -320, 1720, -HW, HW, 0.004);                           // 골목 바닥: 시멘트 포장
   sideAlleys().forEach(a => { const xa = a.side * HW, xb = a.side * (HW + a.len); ribbon(conc, a.s - a.w / 2, a.s + a.w / 2, Math.min(xa, xb), Math.max(xa, xb), 0.005, a.w); });   // 갈림 골목 바닥
   ribbon(conc, A - 4, A + 4, HW, HW + 12, 0.005, 8);                  // 필로티 주차장 바닥
-  ribbonMesh(conc, lambert(0x8a8780));
+  ribbonMesh(conc, LOOK_OLD ? lambert(0x8a8780) : new THREE.MeshLambertMaterial({ color: 0xb4afa6, map: alleyFloorTex() }));
   buildNeighborhood();
 }
 function buildRoad() {
