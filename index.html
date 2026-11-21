@@ -710,6 +710,9 @@ function totalText() {
 const canvas = $('gl');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, matchMedia('(pointer: coarse)').matches ? 1.5 : 2));
+// 색감: 영화식 톤 매핑(ACES)으로 밝은 곳이 부드럽게 눌리고 명암이 살아나게 한다. 주소에 ?look=old를 붙이면 예전 색감
+const LOOK_OLD = (() => { try { return new URLSearchParams(location.search).get('look') === 'old'; } catch (e) { return false; } })();
+if (!LOOK_OLD) { renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.25; }
 const scene = new THREE.Scene();
 const DUSK_SKY = (() => {
   const c = document.createElement('canvas'); c.width = 4; c.height = 256; const g = c.getContext('2d');
