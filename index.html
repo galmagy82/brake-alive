@@ -620,15 +620,15 @@ const SCENARIOS = [
   {
     id: '08', title: '터널 입구 정체', ready: true,
     info: '고속도로 터널 · 편도 2차로 · 낮 12시',
-    mission: { time: 30 },
+    mission: { time: 20 },
     daylight: 'noon',   // 한낮: 바깥이 밝을수록 터널 입구 안이 더 까맣게 보인다
     // 편도 2차로 고속도로. 400m 앞 터널 입구. 바깥에서는 터널 안이 새까맣게 보이고,
     // 들어가는 순간 약 2초 동안 눈이 어둠에 적응하지 못해 앞이 거의 안 보인다 (그 뒤 1.5초에 걸쳐 회복)
     // 중앙분리대 없음: 중앙선을 넘어 맞은편 차로로 갈 수 있다. 맞은편 방향도 터널(쌍굴)
     road: { type: 'city4', half: 7.0, flat: 10.5, xMin: -6.3, xMax: 6.3, hillStart: 1e6, hillEnd: 1e6 + 1, crest: 1e6, H: 0,
       zoneStart: -1e4, zoneEnd: 1e4, goal: 490, tunnel: { s0: 400, s1: 1700, portal: true, twin: true } },
-    // 나: 1차로, 시속 100km로 출발 (입구 400m 전)
-    player: { s: 0, v: 27.8, x: 1.75 },
+    // 나: 1차로, 시속 100km로 출발 (입구 300m 전)
+    player: { s: 100, v: 27.8, x: 1.75 },
     // 정체 줄 2차로 안의 화물차 (시속 10km)
     truck: { type: 'truck', label: '화물차', brakes: true, s: 449, x: 5.25, up: 2.78, flat: 2.78, down: 2.78, mass: 6, hl: 5, hw: 1.25, height: 3.5 },
     oncoming: [
