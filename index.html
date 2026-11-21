@@ -514,15 +514,15 @@ const SCENARIOS = [
       zoneStart: -1e4, zoneEnd: 1e4, goal: 480, merge: { s0: 260, s1: 330, taper: 30, ang: 0.21, len: 220 } },
     // 나: 2차로, 시속 60km로 출발
     player: { s: 0, v: 16.7, x: 5.25 },
-    // 1차로 차들: 시속 약 80km로 16m 간격으로 줄지어 달린다 (사이에 화물차 한 대)
+    // 1차로 차들: 시속 약 79km(21.99m/s)로 32m 간격으로 줄지어 달린다 (사이에 화물차 한 대)
     // brakes: 사고가 나면 다른 1차로 차들처럼 1.5초 뒤 급제동한다 (01의 화물차는 급제동하지 않는다)
-    truck: { type: 'truck', label: '화물차', brakes: true, s: 140, x: 1.75, up: 24.77, flat: 24.77, down: 24.77, mass: 6, hl: 5, hw: 1.25, height: 3.5 },
+    truck: { type: 'truck', label: '화물차', brakes: true, s: 140, x: 1.75, up: 21.99, flat: 21.99, down: 21.99, mass: 6, hl: 5, hw: 1.25, height: 3.5 },
     oncoming: [
       // 합류 차: 처음부터 진입로에 보이고, 깜빡이 없이 가속 차로를 달리다가 정해진 시각에 갑자기 속도를 올리며 끼어든다
       // (브레이크를 전혀 밟지 않으면 내 차 약 30m 앞에서 끼어들도록 맞췄다)
       { label: '끼어든 차', hazard: true, merge: true, color: 0x8a6d1f, v: 14, u0: 124, cutAt: 10.2, cutV: 22, cutA: 5 },
-      ...Array.from({ length: 70 }, (_, k) => -40 + k * 16).filter(s => Math.abs(s - 140) > 12).map(s => ({ label: '1차로 차', fwd: true, s, v: 24.77, x: 1.75 })),
-      ...Array.from({ length: 16 }, (_, k) => [{ s: 95 + k * 45, v: 15, x: -1.75 }, { s: 117 + k * 45 + (k % 3) * 6, v: 13.5, x: -5.25 }]).flat(),
+      ...Array.from({ length: 35 }, (_, k) => -40 + k * 32).filter(s => Math.abs(s - 140) > 12).map(s => ({ label: '1차로 차', fwd: true, s, v: 21.99, x: 1.75 })),
+      ...Array.from({ length: 8 }, (_, k) => [{ s: 95 + k * 90, v: 15, x: -1.75 }, { s: 117 + k * 90 + (k % 3) * 6, v: 13.5, x: -5.25 }]).flat(),
     ],
     lessons: [
       '합류 지점이 보이면, 합류하는 차가 내 차로로 들어올 수 있다고 생각합니다.',
@@ -626,7 +626,7 @@ function totalText() {
 /* ---------- 렌더러와 장면 ---------- */
 const canvas = $('gl');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, matchMedia('(pointer: coarse)').matches ? 1.5 : 2));
 const scene = new THREE.Scene();
 scene.background = (() => {
   const c = document.createElement('canvas'); c.width = 4; c.height = 256; const g = c.getContext('2d');
@@ -1131,7 +1131,7 @@ function wheels(g, xs, zs, r, bw) {
     const rim = new THREE.Mesh(rimG, rimM); rim.rotation.z = Math.PI / 2; rim.position.x = ox; sp.add(rim);
     const hub = new THREE.Mesh(hubG, lambert(0x2a2c30)); hub.rotation.z = Math.PI / 2; hub.position.x = ox + sg * 0.02; sp.add(hub);
     for (let k = 0; k < 5; k++) { const pv = new THREE.Group(); pv.position.x = ox + sg * 0.012; pv.rotation.x = k * Math.PI * 2 / 5; const sk = new THREE.Mesh(spokeG, TIRE_M); sk.position.y = r * 0.3; pv.add(sk); sp.add(pv); }
-    g.wheelList.push({ sp, r });
+    g.wheelList.push({ sp, r, det: [lip, rim, hub, ...sp.children.filter(c => c.isGroup)] });
   }));
 }
 function halo(scale, opacity) { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: HALO, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity })); s.scale.set(scale, scale, 1); return s; }
@@ -1359,6 +1359,8 @@ function walkPeds(dt) {
 // 보행자 사망 확률: 충돌 속도(km/h) 기준. Tefft(2013) 평균 위험 추정(10%: 38.8, 25%: 52.3, 50%: 65.3, 75%: 77.2, 90%: 87.9 km/h)에 맞춘 로지스틱 곡선
 const PED_A = -5.725, PED_B = 0.08903;
 const pedRisk = v => 1 / (1 + Math.exp(-(PED_A + PED_B * v)));
+// Level of detail reference = player position of the frame being drawn (set in drawWorld)
+const lodRef = { s: 0, x: 0 }, LOD_NEAR = 40, CAR_FAR = 300;
 function placeVehicle(v, s, x, flip, yaw, pitchAdd) {
   // 도로 밖(잔디·언덕)으로 밀려난 차는 실제 땅 높이와 옆 기울기를 따른다 (도로 위에서는 땅 높이 보정이 0)
   const gb = R.type === 'alley' ? 0 : bank(s, x), roll = R.type === 'alley' ? 0 : Math.atan((bank(s, x + 0.6) - bank(s, x - 0.6)) / 1.2);
@@ -1370,6 +1372,9 @@ function placeVehicle(v, s, x, flip, yaw, pitchAdd) {
     if (Math.abs(ds) + Math.abs(dx) < 8) { const Y = (yaw || 0) + (v.inner && flip ? Math.PI : 0); ud.rollD = (ud.rollD || 0) + ds * Math.cos(Y) - dx * Math.sin(Y); }
     ud.lastS = s; ud.lastX = x;
     wl.forEach(wh => { wh.sp.rotation.x = -(ud.rollD || 0) / wh.r; });
+    // Far vehicles: plain tires only (rim, hub, spokes hidden) to cut draw calls
+    const near = Math.hypot(s - lodRef.s, x - lodRef.x) < LOD_NEAR;
+    if (ud.lodNear !== near) { ud.lodNear = near; wl.forEach(wh => wh.det.forEach(d => { d.visible = near; })); }
   }
   if (v.inner) v.inner.rotation.y = flip ? Math.PI : 0;
 }
@@ -1935,6 +1940,7 @@ function updateLights(t) {
   LIGHTS.forEach(L => { const k = L.role === 'main' ? main : cross; if (L.cur !== k) { L.set(k); L.cur = k; } });
 }
 function drawWorld(f, showPlayer) {
+  lodRef.s = f.ps; lodRef.x = f.px || 0;
   updateLights(f.t);
   const C = G.ch, crashT = C ? f.t - C.t0 : -1;
   placeVehicle(truckMesh, f.ts, f.tx ?? SC.truck.x, false, (f.ty || 0) + (SC.truck.dir < 0 ? Math.PI : 0), f.tp || 0);   // 마주 오는 앞차(버스)는 반대로 돌려 놓는다
@@ -1957,8 +1963,8 @@ function drawWorld(f, showPlayer) {
   const md = damageAt('me', f.t); playerMesh.inner.scale.z = (md.front || md.rear) ? 0.8 : 1;   // 찌그러진 차체
   G.cars.forEach((c, i) => {
     const m = carMeshes[i], s = f.cs[i];
-    m.outer.visible = isFinite(s);
-    if (isFinite(s)) placeVehicle(m, s, f.cx ? f.cx[i] : c.x, !c.fwd, f.cy ? f.cy[i] : 0);   // 같은 방향 차는 뒤집지 않는다
+    m.outer.visible = isFinite(s) && Math.abs(s - f.ps) < CAR_FAR;
+    if (m.outer.visible) placeVehicle(m, s, f.cx ? f.cx[i] : c.x, !c.fwd, f.cy ? f.cy[i] : 0);   // 같은 방향 차는 뒤집지 않는다
     const cd = damageAt('c' + i, f.t); m.inner.scale.z = (cd.front || cd.rear) ? 0.76 : 1;
     if (m.blink) m.blink.visible = isFinite(s) && f.t >= 0 && (f.cy ? f.cy[i] : 0) < 1.45 && Math.floor(f.t * 3) % 2 === 0;   // 좌회전 깜빡이 (1.5Hz)
   });
