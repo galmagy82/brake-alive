@@ -1,3 +1,14 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#12161c">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Fatal Crash">
 <title>Fatal Crash</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -2458,6 +2469,18 @@ $('rpSkip').addEventListener('click', () => { if (state === 'replay') endReplay(
 $('homeBtn').addEventListener('click', showSelect);
 $('nextBtn').addEventListener('click', () => { const nx = nextScenario(); if (nx) { applyScenario(nx); showBrief(); } });
 $('titleStart').addEventListener('click', showSelect);
+// Mobile: enter fullscreen on a user tap (Android/desktop; iOS Safari ignores it, use Add to Home Screen)
+function goFull() {
+  const d = document, el = d.documentElement;
+  if (d.fullscreenElement || d.webkitFullscreenElement) return;
+  if (!matchMedia('(pointer: coarse)').matches) return;
+  try {
+    const r = (el.requestFullscreen || el.webkitRequestFullscreen || function () {}).call(el, { navigationUI: 'hide' });
+    if (r && r.catch) r.catch(() => {});
+  } catch (e) {}
+}
+$('titleStart').addEventListener('click', goFull);
+$('startBtn').addEventListener('click', goFull);
 $('toTitle').addEventListener('click', showTitle);
 $('toList').addEventListener('click', showSelect);
 
