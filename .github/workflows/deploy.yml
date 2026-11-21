@@ -19,6 +19,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/configure-pages@v6
+      # Dev site only (crash.aimagdic.com): keep it out of search engines; the production repo skips this step
+      - if: github.repository == 'galmagy82/fatal-crash'
+        run: printf 'User-agent: *\nDisallow: /\n' > robots.txt
       - uses: actions/upload-pages-artifact@v5
         with:
           path: '.'
