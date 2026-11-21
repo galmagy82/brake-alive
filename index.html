@@ -3062,14 +3062,14 @@ function drawPlan(f) {
     } else pctx.fillRect(X(s - hl), Y(x - hw), Math.max(3, 2 * hl * k), 2 * hw * vx);
     if (label) { pctx.textAlign = 'center'; pctx.fillText(label, X(s), below ? Y(x + hw) + 13 : Y(x - hw) - 2); pctx.textAlign = 'start'; }
   };
-  car(ts, tx, L.hl, L.hw, '#d5d0c4', L.label);
-  G.cars.forEach((c, i) => { const cs = f.cs[i]; if (isFinite(cs)) car(cs, f.cx ? f.cx[i] : c.x, CAR_HL, CAR_HW, c.isHazard ? '#ff5a4e' : '#8a929c', c.isHazard ? (c.label || '마주 오는 차') : '', false, f.cy ? f.cy[i] : 0); });
+  // 평면도 이름표는 '나'만 (사용자 결정): 앞차·다른 차·보행자는 이름 없이 그린다
+  car(ts, tx, L.hl, L.hw, '#d5d0c4', '');
+  G.cars.forEach((c, i) => { const cs = f.cs[i]; if (isFinite(cs)) car(cs, f.cx ? f.cx[i] : c.x, CAR_HL, CAR_HW, c.isHazard ? '#ff5a4e' : '#8a929c', '', false, f.cy ? f.cy[i] : 0); });
   car(f.ps, f.px, CAR_HL, CAR_HW, '#4c8dff', '나', true);
   G.peds.forEach((q, i) => {
     if (!f.pd || f.pd.length < (i + 1) * 6) return;
     const qs = f.pd[i * 6], qx = f.pd[i * 6 + 1];
     pctx.fillStyle = '#ff5a4e'; pctx.beginPath(); pctx.arc(X(qs), Y(qx), Math.max(2.5, 0.35 * vx * (0.6 + 0.4 * q.scale)), 0, 7); pctx.fill();
-    pctx.textAlign = 'center'; pctx.fillText(q.label, X(qs), i ? Y(qx) + 16 : Y(qx) - 5); pctx.textAlign = 'start';   // 두 번째 사람은 점 아래에 (겹치지 않게)
   });
 }
 
