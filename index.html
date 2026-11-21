@@ -43,6 +43,7 @@ body { background: var(--asphalt); color: var(--paper); font-family: var(--f-bod
 #gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; transition: filter .9s ease; }
 #gl.dead { filter: grayscale(1) brightness(.45) contrast(1.1); }
 #cracks { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+#glare { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at 50% 42%, #ffffff 0%, #fffaf0 55%, #f1e6d0 100%); }
 #flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
 
 /* cockpit frame */
@@ -261,6 +262,7 @@ button.card:hover, button.card:focus-visible { border-color: var(--paint); trans
 <div id="app">
   <canvas id="gl"></canvas>
   <canvas id="cracks" hidden></canvas>
+  <div id="glare"></div>
   <div id="flash"></div>
   <div id="cockpit" hidden></div>
   <div id="labels"></div>
@@ -579,12 +581,42 @@ const SCENARIOS = [
     hint: '누르고 있는 동안 왼쪽·오른쪽으로 움직이고, 떼면 그 자리를 유지합니다.',
     replay: 'plan',
   },
-  { id: '07', title: '사각지대 오토바이' },
-  { id: '08', title: '노란불 교차로' },
-  { id: '09', title: '스쿨존 골목' },
-  { id: '10', title: '운전 중 메시지' },
-  { id: '11', title: '빗길 커브' },
-  { id: '12', title: '야간 무단횡단' },
+  {
+    id: '07', title: '터널 출구 정체', ready: true,
+    info: '고속도로 터널 · 편도 2차로 · 오후 5시',
+    mission: { time: 25 },
+    // 편도 2차로 고속도로 터널 (출구 400m). 맞은편 차로는 중앙분리대·터널 벽 너머라 갈 수 없다
+    // 터널 안은 주황빛 나트륨등으로 어둡고, 출구는 하얗게 보인다. 출구를 나서는 순간 약 1.5초 동안 눈이 부셔 앞이 거의 안 보인다
+    road: { type: 'city4', half: 7.0, flat: 10.5, xMin: 0.9, xMax: 6.3, hillStart: 1e6, hillEnd: 1e6 + 1, crest: 1e6, H: 0,
+      zoneStart: -1e4, zoneEnd: 1e4, goal: 460, tunnel: { s0: -160, s1: 400 }, median: true },
+    // 나: 1차로, 시속 100km로 출발
+    player: { s: 0, v: 27.8, x: 1.75 },
+    // 정체 줄 2차로 안의 화물차 (시속 10km로 기어간다)
+    truck: { type: 'truck', label: '화물차', brakes: true, s: 424, x: 5.25, up: 2.78, flat: 2.78, down: 2.78, mass: 6, hl: 5, hw: 1.25, height: 3.5 },
+    oncoming: [
+      // 2차로의 느린 차들 (시속 70km, 띄엄띄엄). 앞차가 느려지면 따라 느려진다
+      ...[-60, 30, 120].map(s => ({ label: '2차로 차', fwd: true, follow: true, s, v: 19.4, x: 5.25 })),
+      // 터널 출구 바로 뒤부터 시작되는 정체: 두 차로 모두 시속 10km로 기어간다
+      ...Array.from({ length: 18 }, (_, k) => ({ label: '정체 차량', fwd: true, jam: true, s: 405 + k * 8.5, v: 2.78, x: 1.75 })),
+      ...[401, 409.5, ...Array.from({ length: 14 }, (_, k) => 437.5 + k * 8.5)].map(s => ({ label: '정체 차량', fwd: true, jam: true, s, v: 2.78, x: 5.25 })),
+    ],
+    lessons: [
+      '터널을 나오는 순간에는 밝은 빛 때문에 잠깐 앞이 보이지 않습니다.',
+      '터널 출구가 가까워지면 미리 속도를 줄이고, 앞차와 거리를 넉넉히 두세요.',
+      '터널 출구 바로 뒤에 정체가 있을 수 있다고 생각하고 달립니다.',
+    ],
+    thumb: { s: 330, x: 1.75, lead: 424 },
+    hint: '누르고 있는 동안 왼쪽·오른쪽으로 움직이고, 떼면 그 자리를 유지합니다.',
+    replay: 'plan',
+    truckBody: '터널 출구 바로 뒤에서 정체가 시작되고 있었습니다. 눈이 부신 동안에는 앞차를 볼 수 없습니다.',
+    chainBody: '터널 출구의 정체를 늦게 알아챈 한 대가 여러 차를 사고에 휘말리게 했습니다.',
+  },
+  { id: '08', title: '사각지대 오토바이' },
+  { id: '09', title: '노란불 교차로' },
+  { id: '10', title: '스쿨존 골목' },
+  { id: '11', title: '운전 중 메시지' },
+  { id: '12', title: '빗길 커브' },
+  { id: '13', title: '야간 무단횡단' },
 ];
 let SC = SCENARIOS[0], R = SC.road, MISSION_T = SC.mission.time;
 const V_MAX = 50;                        // 최고속도 180km/h (m/s)
@@ -637,7 +669,7 @@ scene.fog = new THREE.Fog(0xb88a72, 160, 1150);
 const camera = new THREE.PerspectiveCamera(68, 1, 0.1, 2600);
 camera.rotation.order = 'YXZ';
 scene.add(camera);
-scene.add(new THREE.HemisphereLight(0xffd6b0, 0x2e3a26, 0.8));
+const hemiLight = new THREE.HemisphereLight(0xffd6b0, 0x2e3a26, 0.8); scene.add(hemiLight);
 const sunLight = new THREE.DirectionalLight(0xffc08a, 0.7); sunLight.position.set(-80, 50, -100); scene.add(sunLight);
 
 function glowTex(inner, outer) {
@@ -660,13 +692,49 @@ function buildWorld() {
     scene.remove(world);
     world.traverse(o => { if (o.geometry) o.geometry.dispose(); (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { if (m && m.map) m.map.dispose(); }); });   // 재질이 여러 개인 건물도 처리
   }
-  world = new THREE.Group(); scene.add(world); alleyBld = alleyHide = alleyFoot = null;
+  world = new THREE.Group(); scene.add(world); alleyBld = alleyHide = alleyFoot = null; tunnelExit = null; envIn = null;
   buildGround(); buildRoad(); buildTrees(); buildGoal();
   if (R.type === 'city4') {
     if (R.crosswalk) { addCrosswalkSign(R.crosswalk - 4, R.half + 1.2); addCrosswalkSign(R.crosswalk + 4, -R.half - 1.2, true); }
     if (R.intersection) buildIntersectionProps();
     if (R.merge) addMergeSign(R.merge.s0 - 45, R.half + 2.4);
+    if (R.median) buildMedian();
+    if (R.tunnel) buildTunnel();
   } else { addSign(R.zoneStart - 8, 4.9); addSign(R.zoneStart - 8, -4.9); }   // 맞은편 방향 표지 뒷면 대신 양쪽에 설치
+}
+
+/* 고속도로: 중앙분리대 (터널 구간은 터널 벽이 대신한다) */
+function buildMedian() {
+  const T = R.tunnel, mat = lambert(0x9a968c);
+  const seg = (a, b) => { if (b <= a) return; const m = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.85, b - a), mat); m.position.set(0, h((a + b) / 2) + 0.42, -(a + b) / 2); world.add(m); };
+  if (T) { seg(-320, T.s0); seg(T.s1, 1720); } else seg(-320, 1720);
+}
+/* 터널: 벽·천장·나트륨등 + 출구의 하얀 빛 */
+let tunnelExit = null;
+function buildTunnel() {
+  const T = R.tunnel, L = T.s1 - T.s0, mid = -(T.s0 + T.s1) / 2, y0 = h(T.s1), xr = R.half + 1.0, top = 6.5;
+  const wallM = lambert(0x6f6a60), tileM = lambert(0xb8b09c), ceilM = lambert(0x2c2b29);
+  const add = (w, hh, x, y, m) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, hh, L), m); b.position.set(x, y0 + y, mid); world.add(b); };
+  add(0.3, top, 0, top / 2, wallM); add(0.3, top, xr, top / 2, wallM);                 // 왼쪽(중앙)·오른쪽 벽
+  add(0.04, 1.6, 0.17, 0.8, tileM); add(0.04, 1.6, xr - 0.17, 0.8, tileM);             // 벽 아래쪽 밝은 타일 띠
+  add(xr + 0.3, 0.3, xr / 2, top + 0.15, ceilM);                                          // 천장
+  // 나트륨등: 천장 양쪽에 6m 간격 (한 번에 그린다)
+  const n = Math.floor(L / 6), lampG = new THREE.BoxGeometry(0.28, 0.12, 1.4), lamps = new THREE.InstancedMesh(lampG, basic(0xffa64d), n * 2), mtx = new THREE.Matrix4();
+  for (let i = 0; i < n; i++) [0.9, xr - 0.9].forEach((x, j) => { mtx.makeTranslation(x, y0 + top - 0.1, -(T.s0 + 3 + i * 6)); lamps.setMatrixAt(i * 2 + j, mtx); });
+  world.add(lamps);
+  // 출구: 터널 안에서 보면 바깥이 하얗게 날아가 보인다
+  tunnelExit = new THREE.Mesh(new THREE.PlaneGeometry(xr + 0.3, top), new THREE.MeshBasicMaterial({ color: 0xfffaf0, fog: false, transparent: true, opacity: 0.96, depthWrite: false }));
+  tunnelExit.position.set(xr / 2, y0 + top / 2, -(T.s1 + 0.3)); world.add(tunnelExit);
+}
+// 터널 안이면 어둡고 주황빛, 밖이면 원래 해 질 녘 빛
+let envIn = null;
+function tunnelEnv(ps) {
+  const T = R.tunnel, inside = !!T && ps > T.s0 && ps < T.s1 - 0.5;
+  if (tunnelExit) tunnelExit.visible = inside;
+  if (inside === envIn) return; envIn = inside;
+  hemiLight.color.setHex(inside ? 0xffa860 : 0xffd6b0); hemiLight.groundColor.setHex(inside ? 0x2a1a10 : 0x2e3a26); hemiLight.intensity = inside ? 0.32 : 0.8;
+  sunLight.intensity = inside ? 0.04 : 0.7;
+  scene.fog.color.setHex(inside ? 0x1c140d : 0xb88a72); scene.fog.near = inside ? 25 : 160; scene.fog.far = inside ? 420 : 1150;
 }
 
 /* 지형 */
@@ -1894,6 +1962,8 @@ function newRound() {
     if (o.cross) Object.assign(c, { cross: true, yaw: -Math.PI / 2 });   // 가로 도로를 오른쪽에서 왼쪽(-x)으로 달린다
     if (o.queue) Object.assign(c, { queue: o.queue, vT: o.v, v: 0 });   // 신호 대기: 서 있다가 출발
     if (o.fwd) Object.assign(c, { fwd: true, yaw: 0 });                    // 나와 같은 방향으로 달리는 차
+    if (o.follow) Object.assign(c, { follow: true, vT: o.v });   // 앞차가 느리면 따라 느려진다
+    if (o.jam) c.jam = true;                                        // 정체 줄의 차
     if (o.merge) { Object.assign(c, { fwd: true, merge: true, u: o.u0, cutAt: o.cutAt, cutV: o.cutV, cutA: o.cutA }); Object.assign(c, mergePos(c.u)); }
   });   // 처음부터 정해진 위치에서 달린다
   carMeshes.forEach(m => m.outer.visible = false);
@@ -1937,6 +2007,15 @@ function turnMove(c, dt) {
 
 // 마주 오는 차는 내가 화물차 옆을 지날 때, 운전석에서 막 안 보이는 언덕 너머 지점에서 출발한다.
 // 그래서 정상을 넘어오는 순간 처음 보이게 된다.
+// 같은 차로의 앞차(차·화물차)를 따라간다: 가까우면 그 속도에 맞춰 줄이고, 멀면 원래 속도로 (플레이어에는 반응하지 않는다)
+function followMove(c, dt) {
+  let gap = Infinity, lv = 0;
+  for (const o of G.cars) if (o !== c && o.active && o.fwd && Math.abs(o.x - c.x) < 1.5 && o.s > c.s && o.s - c.s < gap) { gap = o.s - c.s; lv = o.v; }
+  const tr = G.truck;
+  if (Math.abs(SC.truck.x - c.x) < 1.5 && tr.s > c.s) { const g2 = tr.s - c.s - (SC.truck.hl - CAR_HL); if (g2 < gap) { gap = g2; lv = tr.v; } }
+  const want = gap === Infinity ? c.vT : clamp(lv + (gap - 10) * 0.5, 0, c.vT);
+  c.v += clamp(want - c.v, -7 * dt, 2.5 * dt);
+}
 function step(dt) {
   const p = G.p, tr = G.truck, hz = G.hazard;
   G.prev = { s: p.s, x: p.x, ts: tr.s, bs: G.bait ? G.bait.s : undefined, cs: G.cars.map(c => c.active ? c.s : NaN), cx: G.cars.map(c => c.x) };   // 화면 보간용 직전 상태
@@ -1969,13 +2048,20 @@ function step(dt) {
     tr.v += (tv - tr.v) * Math.min(1, dt * 0.6); tr.s += tr.v * dt;
   }
   if (G.bait) { const bt = G.bait, bl = slope(bt.s), bv = bl > 0.03 ? SC.bait.up : (bl < -0.03 ? SC.bait.down : SC.bait.flat); bt.v += (bv - bt.v) * Math.min(1, dt * 0.6); bt.s += bt.v * dt; }
-  G.cars.forEach(c => { if (!c.active) return; if (c.turn) turnMove(c, dt); else if (c.cross) { c.x -= c.v * dt; if (c.x < -150) c.active = false; } else if (c.merge) mergeMove(c, dt); else if (c.fwd) c.s += c.v * dt;
+  G.cars.forEach(c => { if (!c.active) return; if (c.turn) turnMove(c, dt); else if (c.cross) { c.x -= c.v * dt; if (c.x < -150) c.active = false; } else if (c.merge) mergeMove(c, dt); else if (c.fwd) { if (c.follow) followMove(c, dt); c.s += c.v * dt; }
     else if (c.queue) {   // 녹색불이 켜지고, 가로질러 달려오는 차가 모두 지나간 뒤 출발한다
       if (!c.go && G.t >= SC.signal.greenAt && !G.cars.some(r => r.cross && r.active && r.x > -9)) c.go = true;
       if (c.go) { c.v = Math.min(c.vT, c.v + c.queue.acc * dt); c.s -= c.v * dt; }
     } else c.s -= c.v * dt; if (c.s < p.s - 300) c.active = false; });
 
 
+  if (R.tunnel && prevS < R.tunnel.s1 && p.s >= R.tunnel.s1) {
+    G.exitT = t; G.exitWall = performance.now();
+    // 나서는 순간 내 차로의 앞차까지 거리 (눈부심 때문에 보이지 않던 정보)
+    let gap = Infinity; G.cars.forEach(c => { if (c.active && c.fwd && Math.abs(c.x - p.x) < 1.6 && c.s > p.s) gap = Math.min(gap, c.s - p.s - 2 * CAR_HL); });
+    if (Math.abs(SC.truck.x - p.x) < 1.9 && tr.s > p.s) gap = Math.min(gap, tr.s - p.s - SC.truck.hl - CAR_HL);
+    ev('tunnelExit', { gap: isFinite(gap) ? gap : null, v: p.v });
+  }   // 터널을 나서는 순간 (눈부심 시작)
   if (prevS < R.zoneStart - 8 && p.s >= R.zoneStart - 8) ev('sign');
   const left = p.x < 0;
   if (left && !G.flags.left) {
@@ -2023,7 +2109,7 @@ function step(dt) {
   for (const c of G.cars) {
     if (!c.active) continue;
     const yw = c.yaw || 0, cy = Math.abs(Math.cos(yw)), sy = Math.abs(Math.sin(yw));   // 도는 차는 돌아간 만큼 차지하는 폭이 바뀐다
-    if (Math.abs(c.s - p.s) < CAR_HL * cy + CAR_HW * sy + 2.15 && Math.abs(c.x - p.x) < CAR_HL * sy + CAR_HW * cy + 0.85) return crash(c.turn ? 'turn' : c.cross ? 'runner' : c.merge ? 'merge' : c.parked ? 'parked' : c.fwd ? 'lane' : 'head', c);
+    if (Math.abs(c.s - p.s) < CAR_HL * cy + CAR_HW * sy + 2.15 && Math.abs(c.x - p.x) < CAR_HL * sy + CAR_HW * cy + 0.85) return crash(c.turn ? 'turn' : c.cross ? 'runner' : c.merge ? 'merge' : c.parked ? 'parked' : c.jam ? 'jam' : c.fwd ? 'lane' : 'head', c);
   }
 
   if (p.s >= R.goal) finish();
@@ -2041,6 +2127,7 @@ function updateLights(t) {
 }
 function drawWorld(f, showPlayer) {
   lodRef.s = f.ps; lodRef.x = f.px || 0;
+  tunnelEnv(f.ps);
   updateLights(f.t);
   const C = G.ch, crashT = C ? f.t - C.t0 : -1;
   placeVehicle(truckMesh, f.ts, f.tx ?? SC.truck.x, false, (f.ty || 0) + (SC.truck.dir < 0 ? Math.PI : 0), f.tp || 0);   // 마주 오는 앞차(버스)는 반대로 돌려 놓는다
@@ -2319,6 +2406,7 @@ function captionFor(e) {
   const end = G.end, toCrash = end.kind === 'crash' ? (end.t - e.t).toFixed(1) : null;
   switch (e.type) {
     case 'sign': return '앞지르기 금지 표지판입니다. 여기부터 중앙선이 두 줄 실선으로 바뀝니다.';
+    case 'tunnelExit': return e.gap != null ? `터널을 나서는 순간입니다. 눈이 부셔 보이지 않았지만, 앞차는 ${Math.max(0, e.gap).toFixed(0)}m 앞에 있었습니다. (시속 ${Math.round(e.v * 3.6)}km)` : '터널을 나서는 순간입니다.';
     case 'overtake':
       if (e.seen) return '맞은편에서 오는 차가 보이는 상태에서 중앙선을 넘었습니다.';
       if (e.sight < SAFE_SIGHT) return `중앙선을 넘었습니다. 이때 맞은편 차로는 약 ${e.sight}m 앞까지만 보였고, 그 너머는 언덕에 가려 있었습니다.`;
@@ -2524,6 +2612,9 @@ function showResult() {
     } else if (e.type === 'merge') {
       title = '끼어든 차와 충돌'; sub = '';
       body = (G.flags.cutT ? '' : '') + '합류 지점에서는 합류하던 차가 갑자기 들어올 수 있습니다. 미리 속도를 줄여 앞 공간을 남겨 두세요.';
+    } else if (e.type === 'jam') {
+      title = '정체 차량 추돌'; sub = '';
+      body = '터널을 나오는 순간 밝은 빛에 눈이 적응하는 동안은 앞이 거의 보이지 않습니다. 출구 바로 뒤에서 정체가 시작되고 있었습니다.';
     } else if (e.type === 'lane') {
       title = '옆 차로 차량과 충돌'; sub = '';
       body = '옆 차로가 막혀 있을 때는 속도로만 피할 수 있습니다.';
@@ -2736,6 +2827,15 @@ function loop(now) {
     // 길가 나무에 가리지 않는 위치
     camera.position.set(-5.5 + Math.sin(idleT * 0.12) * 1.5, h(ps - 22) + 5.5, -(ps - 22));
     camera.lookAt(1, h(ps + 60) + 4, -(ps + 140));
+  }
+  // 터널 출구 눈부심: 0.12초 만에 하얗게, 1.5초까지 거의 안 보이다가 1초에 걸쳐 눈이 적응한다
+  {
+    let op = 0;
+    if (G && G.exitWall && (state === 'drive' || state === 'crashing')) {
+      const u = (performance.now() - G.exitWall) / 1000;
+      op = u < 0.12 ? u / 0.12 * 0.97 : u < 1.5 ? 0.97 - (u - 0.12) / 1.38 * 0.1 : Math.max(0, 0.87 * (1 - (u - 1.5) / 1.0));
+    }
+    const gl = $('glare'); if (gl._op !== op) { gl.style.opacity = op; gl._op = op; }
   }
   renderer.render(scene, camera);
 }
