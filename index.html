@@ -1177,8 +1177,61 @@ function buildRoad() {
 }
 
 /* 나무와 전봇대 */
+// 나무 질감과 모양 (한 번만 만든다)
+// 잎: 위는 밝고 아래는 어두운 얼룩 무늬 / 줄기: 세로 결 무늬
+const FOLIAGE_TEX = noiseTex(128, (x, y, n, sm) => 0.62 + 0.38 * (1 - y / 128) + (sm - 0.5) * 0.22 + (n - 0.5) * 0.3, 1);
+const BARK_TEX = noiseTex(64, (x, y, n) => { const f = Math.sin(x * 91.7) * 43758.5; return 0.72 + 0.26 * (f - Math.floor(f)) + (n - 0.5) * 0.08; }, 1);
+function mergeGeoUV(list) {   // 위치·법선·질감 좌표를 함께 합친다
+  const pos = [], nor = [], uv = [];
+  list.forEach(g0 => { const g = g0.index ? g0.toNonIndexed() : g0; pos.push(...g.attributes.position.array); nor.push(...g.attributes.normal.array); uv.push(...g.attributes.uv.array); });
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); return g;
+}
+let TREE_GEO = null;
+function treeGeo() {
+  if (TREE_GEO) return TREE_GEO;
+  // 침엽수: 위로 갈수록 작아지는 원뿔 3단 (전체 높이 1, 반지름 1 기준. 가운데가 원점)
+  const tier = (r, hh, y) => new THREE.ConeGeometry(r, hh, 9, 1).translate(0, y, 0);
+  const conifer = mergeGeoUV([tier(1, 0.55, -0.22), tier(0.76, 0.5, 0.05), tier(0.5, 0.42, 0.29)]);
+  // 활엽수: 울퉁불퉁한 공 (꼭짓점마다 정해진 잡음만큼 부풀리거나 줄인다)
+  const leafy = new THREE.IcosahedronGeometry(1, 1), pa = leafy.attributes.position;
+  for (let i = 0; i < pa.count; i++) {
+    const x = pa.getX(i), y = pa.getY(i), z = pa.getZ(i), f = Math.sin(x * 12.99 + y * 78.23 + z * 37.71) * 43758.5, k = 0.82 + 0.3 * (f - Math.floor(f));
+    pa.setXYZ(i, x * k, y * k * 0.85, z * k);
+  }
+  leafy.computeVertexNormals();
+  return (TREE_GEO = { conifer, leafy });
+}
 function buildTrees() {
   if (R.type === 'alley') return;   // 주택가에는 숲이 없다
+  if (LOOK_OLD) return buildTreesOld();
+  const r = rng(42), N = 900, TG = treeGeo();
+  const trunk = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.16, 0.24, 1, 6), new THREE.MeshLambertMaterial({ color: 0x5a412f, map: BARK_TEX }), N);
+  const leafM = () => new THREE.MeshLambertMaterial({ color: 0xffffff, map: FOLIAGE_TEX });
+  const con = new THREE.InstancedMesh(TG.conifer, leafM(), N), dec = new THREE.InstancedMesh(TG.leafy, leafM(), N);
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), sc = new THREE.Vector3(), col = new THREE.Color(), e = new THREE.Euler();
+  let k = 0, nc = 0, nd = 0;
+  while (k < N) {
+    const s = r() * 1900 - 260, side = r() < 0.5 ? -1 : 1, x = side * ((R.flat || 6) + 3 + r() * r() * 140);
+    if (s > R.goal - 20 && s < R.goal + 120 && Math.abs(x) < 50) continue;
+    if (R.intersection && Math.abs(s - R.intersection) < R.half + 6) continue;   // 가로 도로 위
+    if (R.merge && x > 0 && x < R.half + 80 && s > R.merge.s0 - R.merge.len - 30 && s < R.merge.s1 + R.merge.taper + 20) continue;   // 진입로 위
+    const y = groundY(s, x), H = 5 + r() * 7, rad = 1.3 + r() * 1.5, leafy = r() < 0.4;
+    e.set(0, r() * Math.PI * 2, 0); q.setFromEuler(e);   // 나무마다 조금씩 돌려 같은 모양이 반복돼 보이지 않게
+    p.set(x, y + 0.9, -s); sc.set(1, leafy ? 2.6 : 1.8, 1); m.compose(p, q, sc); trunk.setMatrixAt(k, m);
+    if (leafy) {   // 활엽수: 줄기 위에 둥근 잎 덩어리
+      const R0 = rad * 1.25; p.set(x, y + 2.0 + R0 * 0.8, -s); sc.set(R0, R0, R0); m.compose(p, q, sc); dec.setMatrixAt(nd, m);
+      col.setRGB(0.16 + r() * 0.08, 0.27 + r() * 0.1, 0.1 + r() * 0.05); dec.setColorAt(nd, col); nd++;
+    } else {
+      p.set(x, y + 1.6 + H * 0.4, -s); sc.set(rad, H * 0.8, rad); m.compose(p, q, sc); con.setMatrixAt(nc, m);
+      col.setRGB(0.1 + r() * 0.07, 0.2 + r() * 0.09, 0.11 + r() * 0.05); con.setColorAt(nc, col); nc++;
+    }
+    k++;
+  }
+  con.count = nc; dec.count = nd;
+  world.add(trunk, con, dec);
+  treePoles();
+}
+function buildTreesOld() {   // 예전 나무 (?look=old)
   const r = rng(42), N = 900;
   const trunk = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.16, 0.24, 1, 6), lambert(0x4a3527), N);
   const crown = new THREE.InstancedMesh(new THREE.ConeGeometry(1, 1, 7), lambert(0xffffff), N);
@@ -1196,6 +1249,10 @@ function buildTrees() {
     k++;
   }
   world.add(trunk, crown);
+  treePoles();
+}
+function treePoles() {
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), sc = new THREE.Vector3();
   const poleN = 50, pole = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.13, 0.16, 9, 6), lambert(0x6d6a66), poleN);
   for (let i = 0; i < poleN; i++) { let s = -200 + i * 40; if (R.intersection && Math.abs(s - R.intersection) < R.half + 4) s += 16;
     const mside = R.merge && s > R.merge.s0 - R.merge.len - 20 && s < R.merge.s1 + R.merge.taper + 10 ? -1 : 1;   // 진입로 구간에서는 반대편에
