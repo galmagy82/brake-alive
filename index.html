@@ -589,7 +589,9 @@ const SCENARIOS = [
     // 편도 2차로 고속도로 터널 (출구 400m). 맞은편 차로는 중앙분리대·터널 벽 너머라 갈 수 없다
     // 터널 안은 주황빛 나트륨등으로 어둡고, 출구는 하얗게 보인다. 출구를 나서는 순간 약 1.5초 동안 눈이 부셔 앞이 거의 안 보인다
     road: { type: 'city4', half: 7.0, flat: 10.5, xMin: 0.9, xMax: 6.3, hillStart: 1e6, hillEnd: 1e6 + 1, crest: 1e6, H: 0,
-      zoneStart: -1e4, zoneEnd: 1e4, goal: 510, tunnel: { s0: -160, s1: 400 }, median: true },
+      zoneStart: -1e4, zoneEnd: 1e4, goal: 510, tunnel: { s0: -160, s1: 400 }, median: true,
+      // 터널 출구부터 160m에 걸쳐 8m 내려가는 내리막 (터널 안에서는 정체가 잘 안 보인다)
+      descent: { s0: 400, s1: 560, drop: 8 } },
     // 나: 1차로, 시속 100km로 출발
     player: { s: 0, v: 27.8, x: 1.75 },
     // 정체 줄 2차로 안의 화물차 (시속 10km로 기어간다)
@@ -625,7 +627,14 @@ const V_MAX = 50;                        // 최고속도 180km/h (m/s)
 let X_MIN = SC.road.xMin, X_MAX = SC.road.xMax;   // 차 중심이 움직일 수 있는 범위 (도로 가장자리 안쪽)
 const EYE = 1.25, SEAT = 0;              // 눈높이, 운전석은 차 가운데
 const STEP = 1 / 60;
+// R.descent {s0, s1, drop}: s0부터 s1까지 부드럽게 drop(m)만큼 내려가고 그 뒤는 그 높이 (07 터널 출구 뒤 내리막)
+function descentH(s) {
+  const D = R.descent; if (!D || s <= D.s0) return 0;
+  if (s >= D.s1) return -D.drop;
+  const u = (s - D.s0) / (D.s1 - D.s0); return -D.drop * (1 - Math.cos(Math.PI * u)) / 2;
+}
 function h(s) {
+  if (R.descent) return descentH(s);
   if (s <= R.hillStart || s >= R.hillEnd) return 0;
   const u = (s - R.hillStart) / (R.hillEnd - R.hillStart);
   return R.H * (1 - Math.cos(2 * Math.PI * u)) / 2;
@@ -707,9 +716,17 @@ function buildWorld() {
 
 /* 고속도로: 중앙분리대 (터널 구간은 터널 벽이 대신한다) */
 function buildMedian() {
-  const T = R.tunnel, mat = lambert(0x9a968c);
-  const seg = (a, b) => { if (b <= a) return; const m = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.85, b - a), mat); m.position.set(0, h((a + b) / 2) + 0.42, -(a + b) / 2); world.add(m); };
-  if (T) { seg(-320, T.s0); seg(T.s1, 1720); } else seg(-320, 1720);
+  const T = R.tunnel, mat = lambert(0x9a968c), SEG = 10;
+  // 10m 조각을 도로 경사에 맞춰 기울여 놓는다 (한 번에 그린다)
+  const spans = T ? [[-320, T.s0], [T.s1, 1720]] : [[-320, 1720]], pos = [];
+  spans.forEach(([a, b]) => { for (let k = a; k < b; k += SEG) pos.push([k, Math.min(k + SEG, b)]); });
+  const im = new THREE.InstancedMesh(new THREE.BoxGeometry(0.5, 0.85, 1), mat, pos.length), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), sc = new THREE.Vector3(), p3 = new THREE.Vector3();
+  pos.forEach(([a, b], i) => {
+    const ya = h(a), yb = h(b), len = Math.hypot(b - a, yb - ya);
+    e.set(Math.atan2(yb - ya, b - a), 0, 0); q.setFromEuler(e); sc.set(1, 1, len + 0.05); p3.set(0, (ya + yb) / 2 + 0.42, -(a + b) / 2);
+    m4.compose(p3, q, sc); im.setMatrixAt(i, m4);
+  });
+  world.add(im);
 }
 /* 터널: 벽·천장·나트륨등 + 출구의 하얀 빛 */
 let tunnelExit = null, tunnelGrp = null, tunnelFoot = null;
