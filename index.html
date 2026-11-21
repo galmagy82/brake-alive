@@ -535,6 +535,7 @@ const SCENARIOS = [
     replay: 'plan',
     headOnBody: '중앙선을 넘어 피할 곳은 없었습니다.',
     chainBody: '한 대의 무리한 끼어들기가 여러 차를 사고에 휘말리게 했습니다.',
+    sightLines: false,   // 리플레이 평면도에 운전석 시야선·보이지 않는 구역을 그리지 않는다 (가림이 핵심이 아님)
   },
   {
     id: '06', title: '골목길 어린이', ready: true,
@@ -610,6 +611,7 @@ const SCENARIOS = [
     replay: 'plan',
     truckBody: '터널 출구 바로 뒤에서 정체가 시작되고 있었습니다. 눈이 부신 동안에는 앞차를 볼 수 없습니다.',
     chainBody: '터널 출구의 정체를 늦게 알아챈 한 대가 여러 차를 사고에 휘말리게 했습니다.',
+    sightLines: false,   // 위험은 가림이 아니라 눈부심
   },
   { id: '08', title: '사각지대 오토바이' },
   { id: '09', title: '노란불 교차로' },
@@ -2510,7 +2512,7 @@ function startReplay() {
   RP = { t: tStart, start: tStart, end: tEnd, events: list, pause: 0, after: 0, cam: null };
   ['crash', 'arrive', 'result'].forEach(id => show(id, false));
   show('replayUI', true); show('caption', false); show('cockpit', false); canvas.classList.remove('dead');
-  $('capL').textContent = SC.replay === 'plan' ? '위에서 본 도로 · 운전석 시야' : '옆에서 본 도로 · 운전석 시야선';
+  $('capL').textContent = SC.replay === 'plan' ? (SC.sightLines === false ? '위에서 본 도로' : '위에서 본 도로 · 운전석 시야') : '옆에서 본 도로 · 운전석 시야선';
   $('capR').textContent = SC.replay === 'plan' ? '' : '높이 4배 과장';
   show('cracks', false); hood.visible = false; state = 'replay'; resizeProfile();
 }
@@ -2610,7 +2612,7 @@ function drawPlan(f) {
   // 보이지 않는 구역: 내 눈에서 앞차의 네 모서리로 선을 그었을 때 가장 바깥 두 선 사이, 앞차 너머
   const es = f.ps, ex = f.px + SEAT, L = SC.truck, ts = f.ts, tx = f.tx ?? L.x;
   pctx.font = '600 11px "IBM Plex Sans KR", sans-serif'; pctx.textBaseline = 'bottom';
-  if (ts - L.hl > es + 1) {
+  if (SC.sightLines !== false && ts - L.hl > es + 1) {   // 가림이 핵심이 아닌 시나리오(05, 07)는 그리지 않는다
     const cs4 = [[ts - L.hl, tx - L.hw], [ts - L.hl, tx + L.hw], [ts + L.hl, tx - L.hw], [ts + L.hl, tx + L.hw]];
     const ang = c => Math.atan2(c[1] - ex, c[0] - es);
     let a = cs4[0], b = cs4[0]; cs4.forEach(c => { if (ang(c) < ang(a)) a = c; if (ang(c) > ang(b)) b = c; });
