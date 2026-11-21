@@ -872,7 +872,7 @@ function buildGround() {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  { const M = GROUND_TEX.userData.m, uv = []; for (let i = 0; i < pos.length; i += 3) uv.push(pos[i] / M, -pos[i + 2] / M); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); }
+  { const M = GROUND_TEX.repeatM, uv = []; for (let i = 0; i < pos.length; i += 3) uv.push(pos[i] / M, -pos[i + 2] / M); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); }
   g.setIndex(idx); g.computeVertexNormals();
   world.add(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true, map: GROUND_TEX, color: 0xffffff })));
 }
@@ -894,7 +894,7 @@ function noiseTex(size, px, repeatM) {
     const a = v(x0, y0) + (v(x0 + 1, y0) - v(x0, y0)) * fx, b = v(x0, y0 + 1) + (v(x0 + 1, y0 + 1) - v(x0, y0 + 1)) * fx; return a + (b - a) * fy; };
   for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) { const k = clamp(px(x, y, r(), smooth(x, y)), 0, 1) * 255, i = (y * size + x) * 4; im.data[i] = im.data[i + 1] = im.data[i + 2] = k; im.data[i + 3] = 255; }
   g.putImageData(im, 0, 0);
-  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy()); t.userData.m = repeatM; return t;
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy()); t.repeatM = repeatM; return t;   // r128 텍스처에는 userData가 없다
 }
 // 아스팔트: 자잘한 골재 점 + 은은한 얼룩 (4m마다 반복)
 const ASPHALT_TEX = noiseTex(256, (x, y, n, sm) => 0.86 + (n - 0.5) * 0.22 + (sm - 0.5) * 0.16 - (n > 0.985 ? 0.25 : 0), 4);
@@ -904,8 +904,8 @@ const WALK_TEX = noiseTex(256, (x, y, n, sm) => ((x % 64 < 2) || (y % 64 < 2) ? 
 const GROUND_TEX = noiseTex(128, (x, y, n, sm) => 0.94 + (sm - 0.5) * 0.3 + (n - 0.5) * 0.14, 6);   // 평균 밝기는 예전과 거의 같게
 function ribbonMesh(arr, mat) {
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(arr, 3)); g.computeVertexNormals();
-  if (mat.map && mat.map.userData.m) {   // 질감 좌표: 위에서 본 위치 그대로 (질감 크기 m마다 한 번)
-    const M = mat.map.userData.m, uv = []; for (let i = 0; i < arr.length; i += 3) uv.push(arr[i] / M, -arr[i + 2] / M);
+  if (mat.map && mat.map.repeatM) {   // 질감 좌표: 위에서 본 위치 그대로 (질감 크기 m마다 한 번)
+    const M = mat.map.repeatM, uv = []; for (let i = 0; i < arr.length; i += 3) uv.push(arr[i] / M, -arr[i + 2] / M);
     g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
   }
   const m = new THREE.Mesh(g, mat); world.add(m); return m;
