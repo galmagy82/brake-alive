@@ -3123,8 +3123,28 @@ SCENARIOS.filter(x => x.ready).forEach(sc => { if (SC !== sc) setScenario(sc); m
 applyScenario(SCENARIOS[0]);
 showTitle();   // 첫 화면
 let last = performance.now(), idleT = 0;
+// 자동 해상도: 1초마다 평균 프레임을 재서, 느리면 해상도를 낮추고(빠르게) 여유가 있으면 올린다(천천히)
+// 범위: 휴대폰 0.75~1.5배, PC 1~2배 (기기 화면 배율을 넘지 않음). 주소에 ?fps를 붙이면 왼쪽 아래에 표시
+const AR = { max: Math.min(window.devicePixelRatio || 1, matchMedia('(pointer: coarse)').matches ? 1.5 : 2), min: matchMedia('(pointer: coarse)').matches ? 0.75 : 1, n: 0, sum: 0, good: 0, cool: 0 };
+AR.pr = AR.max; AR.min = Math.min(AR.min, AR.max);
+const SHOW_FPS = (() => { try { return new URLSearchParams(location.search).has('fps'); } catch (e) { return false; } })();
+let fpsEl = null;
+if (SHOW_FPS) { fpsEl = document.createElement('div'); fpsEl.style.cssText = 'position:fixed;left:6px;bottom:6px;z-index:10000;font:600 11px monospace;color:#9f9;background:rgba(0,0,0,.6);padding:2px 6px;border-radius:3px;pointer-events:none'; document.body.appendChild(fpsEl); }
+function adaptRes(rawDt) {
+  if (!(rawDt > 0) || rawDt > 0.5 || document.hidden) return;   // 탭 전환 등 비정상 간격은 빼고
+  AR.n++; AR.sum += rawDt; if (AR.sum < 1) return;
+  const fps = AR.n / AR.sum; AR.n = 0; AR.sum = 0;
+  if (fpsEl) fpsEl.textContent = `${fps.toFixed(0)} fps · ${AR.pr.toFixed(2)}x · ${renderer.info.render.calls} draws`;
+  if (AR.cool > 0) { AR.cool--; return; }
+  let pr = AR.pr;
+  if (fps < 48 && pr > AR.min) { pr = Math.max(AR.min, pr * 0.85); AR.good = 0; }
+  else if (fps >= 57) { if (++AR.good >= 4 && pr < AR.max) { pr = Math.min(AR.max, pr * 1.1); AR.good = 0; } }
+  else AR.good = 0;
+  if (Math.abs(pr - AR.pr) > 0.01) { AR.pr = pr; renderer.setPixelRatio(pr); resize(); AR.cool = 2; }
+}
 function loop(now) {
   requestAnimationFrame(loop);
+  adaptRes((now - last) / 1000);
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (needRotate() && state !== 'title' && state !== 'select' && state !== 'brief') {
     engine(0, false); brakeSound(false, 0);
