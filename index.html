@@ -1010,7 +1010,7 @@ function facadeMat(kind, lit) {
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   return (FACADE[key] = new THREE.MeshLambertMaterial({ map: t }));
 }
-// 골목 바닥(새 모습): 낡은 시멘트 포장. 512px = 12m (3m마다 줄눈), 가는 균열, 아스팔트 땜질, 기름·물 얼룩
+// (사용 안 함: 사용자가 골목 바닥을 도로와 같은 아스팔트로 정함) 골목 바닥 시멘트 포장. 512px = 12m (3m마다 줄눈), 가는 균열, 아스팔트 땜질, 기름·물 얼룩
 let ALLEY_FLOOR = null;
 function alleyFloorTex() {
   if (ALLEY_FLOOR) return ALLEY_FLOOR;
@@ -1170,7 +1170,7 @@ function buildAlley(asphalt, white) {
   ribbon(conc, -320, 1720, -HW, HW, 0.004);                           // 골목 바닥: 시멘트 포장
   sideAlleys().forEach(a => { const xa = a.side * HW, xb = a.side * (HW + a.len); ribbon(conc, a.s - a.w / 2, a.s + a.w / 2, Math.min(xa, xb), Math.max(xa, xb), 0.005, a.w); });   // 갈림 골목 바닥
   ribbon(conc, A - 4, A + 4, HW, HW + 12, 0.005, 8);                  // 필로티 주차장 바닥
-  ribbonMesh(conc, LOOK_OLD ? lambert(0x8a8780) : new THREE.MeshLambertMaterial({ color: 0x404246, map: alleyFloorTex() }));
+  ribbonMesh(conc, LOOK_OLD ? lambert(0x8a8780) : new THREE.MeshLambertMaterial({ color: 0x33363b, map: ASPHALT_TEX }));
   buildNeighborhood();
 }
 function buildRoad() {
