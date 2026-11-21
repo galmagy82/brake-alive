@@ -43,6 +43,7 @@ body { background: var(--asphalt); color: var(--paper); font-family: var(--f-bod
 #gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; transition: filter .9s ease; }
 #gl.dead { filter: grayscale(1) brightness(.45) contrast(1.1); }
 #cracks { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+#dark { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at 50% 45%, #0b0a09 0%, #030303 70%, #000 100%); }
 #glare { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at 50% 42%, #ffffff 0%, #fffaf0 55%, #f1e6d0 100%); }
 #flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
 
@@ -263,6 +264,7 @@ button.card:hover, button.card:focus-visible { border-color: var(--paint); trans
   <canvas id="gl"></canvas>
   <canvas id="cracks" hidden></canvas>
   <div id="glare"></div>
+  <div id="dark"></div>
   <div id="flash"></div>
   <div id="cockpit" hidden></div>
   <div id="labels"></div>
@@ -615,12 +617,45 @@ const SCENARIOS = [
     chainBody: '터널 출구의 정체를 늦게 알아챈 한 대가 여러 차를 사고에 휘말리게 했습니다.',
     sightLines: false,   // 위험은 가림이 아니라 눈부심
   },
-  { id: '08', title: '사각지대 오토바이' },
-  { id: '09', title: '노란불 교차로' },
-  { id: '10', title: '스쿨존 골목' },
-  { id: '11', title: '운전 중 메시지' },
-  { id: '12', title: '빗길 커브' },
-  { id: '13', title: '야간 무단횡단' },
+  {
+    id: '08', title: '터널 입구 정체', ready: true,
+    info: '고속도로 터널 · 편도 2차로 · 낮 12시',
+    mission: { time: 30 },
+    daylight: 'noon',   // 한낮: 바깥이 밝을수록 터널 입구 안이 더 까맣게 보인다
+    // 편도 2차로 고속도로. 400m 앞 터널 입구. 바깥에서는 터널 안이 새까맣게 보이고,
+    // 들어가는 순간 약 2초 동안 눈이 어둠에 적응하지 못해 앞이 거의 안 보인다 (그 뒤 1.5초에 걸쳐 회복)
+    road: { type: 'city4', half: 7.0, flat: 10.5, xMin: 0.9, xMax: 6.3, hillStart: 1e6, hillEnd: 1e6 + 1, crest: 1e6, H: 0,
+      zoneStart: -1e4, zoneEnd: 1e4, goal: 490, tunnel: { s0: 400, s1: 1700, portal: true }, median: true },
+    // 나: 1차로, 시속 100km로 출발 (입구 400m 전)
+    player: { s: 0, v: 27.8, x: 1.75 },
+    // 정체 줄 2차로 안의 화물차 (시속 10km)
+    truck: { type: 'truck', label: '화물차', brakes: true, s: 449, x: 5.25, up: 2.78, flat: 2.78, down: 2.78, mass: 6, hl: 5, hw: 1.25, height: 3.5 },
+    oncoming: [
+      // 2차로의 느린 차들 (시속 70km, 띄엄띄엄). 앞차가 느려지면 따라 느려진다
+      ...[-60, 30, 120].map(s => ({ label: '2차로 차', fwd: true, follow: true, s, v: 19.4, x: 5.25 })),
+      // 터널 입구 안 약 30m부터 시작되는 정체: 두 차로 모두 시속 10km로 기어간다 (차 중심 간격 6.5m, 차 사이 약 2m)
+      ...Array.from({ length: 23 }, (_, k) => ({ label: '정체 차량', fwd: true, jam: true, s: 430 + k * 6.5, v: 2.78, x: 1.75 })),
+      ...[426, 432.5, 439, ...Array.from({ length: 18 }, (_, k) => 458 + k * 6.5)].map(s => ({ label: '정체 차량', fwd: true, jam: true, s, v: 2.78, x: 5.25 })),
+    ],
+    lessons: [
+      '밝은 곳에서 터널에 들어가는 순간에는 눈이 어둠에 적응하는 동안 앞이 잘 보이지 않습니다.',
+      '터널 입구가 가까워지면 미리 속도를 줄이고, 앞차와 거리를 넉넉히 두세요.',
+      '터널 입구 바로 안에 정체가 있을 수 있다고 생각하고 들어갑니다.',
+    ],
+    thumb: { s: 300, x: 1.75, lead: 449 },
+    hint: '누르고 있는 동안 왼쪽·오른쪽으로 움직이고, 떼면 그 자리를 유지합니다.',
+    replay: 'plan',
+    jamBody: '밝은 바깥에서 터널에 들어가는 순간, 눈이 어둠에 적응하는 동안은 앞이 거의 보이지 않습니다. 입구 바로 안에서 정체가 시작되고 있었습니다.',
+    truckBody: '터널 입구 바로 안에서 정체가 시작되고 있었습니다. 눈이 어둠에 적응하는 동안에는 앞차를 볼 수 없습니다.',
+    chainBody: '터널 입구의 정체를 늦게 알아챈 한 대가 여러 차를 사고에 휘말리게 했습니다.',
+    sightLines: false,   // 위험은 가림이 아니라 어둠 적응
+  },
+  { id: '09', title: '사각지대 오토바이' },
+  { id: '10', title: '노란불 교차로' },
+  { id: '11', title: '스쿨존 골목' },
+  { id: '12', title: '운전 중 메시지' },
+  { id: '13', title: '빗길 커브' },
+  { id: '14', title: '야간 무단횡단' },
 ];
 let SC = SCENARIOS[0], R = SC.road, MISSION_T = SC.mission.time;
 const V_MAX = 50;                        // 최고속도 180km/h (m/s)
@@ -670,10 +705,18 @@ const canvas = $('gl');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, matchMedia('(pointer: coarse)').matches ? 1.5 : 2));
 const scene = new THREE.Scene();
-scene.background = (() => {
+const DUSK_SKY = (() => {
   const c = document.createElement('canvas'); c.width = 4; c.height = 256; const g = c.getContext('2d');
   const gr = g.createLinearGradient(0, 0, 0, 256);
   gr.addColorStop(0, '#1d2a44'); gr.addColorStop(0.42, '#5b5470'); gr.addColorStop(0.62, '#c98a6a'); gr.addColorStop(0.72, '#e9a66c'); gr.addColorStop(1, '#8a6a58');
+  g.fillStyle = gr; g.fillRect(0, 0, 4, 256); return new THREE.CanvasTexture(c);
+})();
+scene.background = DUSK_SKY;
+// 한낮 하늘 (08)
+const NOON_SKY = (() => {
+  const c = document.createElement('canvas'); c.width = 4; c.height = 256; const g = c.getContext('2d');
+  const gr = g.createLinearGradient(0, 0, 0, 256);
+  gr.addColorStop(0, '#3f78c4'); gr.addColorStop(0.55, '#8db6e2'); gr.addColorStop(0.7, '#cfe0ee'); gr.addColorStop(1, '#a9b6a0');
   g.fillStyle = gr; g.fillRect(0, 0, 4, 256); return new THREE.CanvasTexture(c);
 })();
 scene.fog = new THREE.Fog(0xb88a72, 160, 1150);
@@ -703,7 +746,7 @@ function buildWorld() {
     scene.remove(world);
     world.traverse(o => { if (o.geometry) o.geometry.dispose(); (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { if (m && m.map) m.map.dispose(); }); });   // 재질이 여러 개인 건물도 처리
   }
-  world = new THREE.Group(); scene.add(world); alleyBld = alleyHide = alleyFoot = null; tunnelExit = tunnelGrp = tunnelFoot = null; envIn = null;
+  world = new THREE.Group(); scene.add(world); alleyBld = alleyHide = alleyFoot = null; tunnelExit = tunnelGrp = tunnelFoot = tunnelMouth = null; envIn = null;
   buildGround(); buildRoad(); buildTrees(); buildGoal();
   if (R.type === 'city4') {
     if (R.crosswalk) { addCrosswalkSign(R.crosswalk - 4, R.half + 1.2); addCrosswalkSign(R.crosswalk + 4, -R.half - 1.2, true); }
@@ -729,7 +772,7 @@ function buildMedian() {
   world.add(im);
 }
 /* 터널: 벽·천장·나트륨등 + 출구의 하얀 빛 */
-let tunnelExit = null, tunnelGrp = null, tunnelFoot = null;
+let tunnelExit = null, tunnelGrp = null, tunnelFoot = null, tunnelMouth = null;
 function buildTunnel() {
   const T = R.tunnel, L = T.s1 - T.s0, mid = -(T.s0 + T.s1) / 2, y0 = h(T.s1), xr = R.half + 1.0, top = 6.5;
   const wallM = lambert(0x6f6a60), tileM = lambert(0xb8b09c), ceilM = lambert(0x2c2b29);
@@ -745,6 +788,17 @@ function buildTunnel() {
   for (let i = 0; i < n; i++) [0.9, xr - 0.9].forEach((x, j) => { mtx.makeTranslation(x, y0 + top - 0.1, -(T.s0 + 3 + i * 6)); lamps.setMatrixAt(i * 2 + j, mtx); });
   tunnelGrp.add(lamps);
   // 출구: 터널 안에서 보면 바깥이 하얗게 날아가 보인다
+  // 입구(portal): 바깥에서 보이는 산비탈 외벽 + 새까맣게 보이는 입구 안쪽
+  if (T.portal) {
+    const yi = h(T.s0), concM = lambert(0x8d8a82), hillM = lambert(0x4a6a35), W = 140, HT = top + 16;
+    const blk = (x0, x1, ya, yb, m, z) => { const b = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, yb - ya, 1.2), m); b.position.set((x0 + x1) / 2, yi + (ya + yb) / 2, -(T.s0 + (z || 0))); tunnelGrp.add(b); };   // 리플레이에서는 함께 숨긴다
+    blk(-W / 2, -0.15, 0, top + 1.2, concM); blk(xr + 0.15, xr + W / 2, 0, top + 1.2, concM);   // 입구 양옆 옹벽
+    blk(-W / 2, xr + W / 2, top, top + 1.2, concM);                                             // 입구 위 콘크리트 테
+    blk(-W / 2, xr + W / 2, top + 1.2, HT, hillM, 0.4);                                        // 그 위 산비탈
+    // 바깥(밝은 곳)에서 보면 입구 안이 거의 새까맣게 보인다
+    tunnelMouth = new THREE.Mesh(new THREE.PlaneGeometry(xr + 0.3, top), new THREE.MeshBasicMaterial({ color: 0x050403, fog: false, transparent: true, opacity: 0.9, depthWrite: false }));
+    tunnelMouth.position.set(xr / 2, yi + top / 2, -(T.s0 + 0.7)); world.add(tunnelMouth);
+  }
   // 출구: 바깥이 보이되 밝은 빛에 뿌옇게 날아가 보인다 (더하기 합성: 바깥 모습 위에 흰 빛을 얹는다)
   tunnelExit = new THREE.Group(); world.add(tunnelExit);
   const haze = new THREE.Mesh(new THREE.PlaneGeometry(xr + 0.3, top), new THREE.MeshBasicMaterial({ color: 0xfff4e0, fog: false, transparent: true, opacity: 0.25, depthWrite: false, blending: THREE.AdditiveBlending }));
@@ -757,10 +811,21 @@ let envIn = null;
 function tunnelEnv(ps) {
   const T = R.tunnel, inside = !!T && state !== 'replay' && ps > T.s0 && ps < T.s1 - 0.5;   // 리플레이는 바깥 밝기로
   if (tunnelExit) tunnelExit.visible = inside;
+  if (tunnelMouth) tunnelMouth.visible = !!T && state !== 'replay' && ps <= T.s0;   // 바깥에서만 입구 안이 까맣게
   if (inside === envIn) return; envIn = inside;
-  hemiLight.color.setHex(inside ? 0xffa860 : 0xffd6b0); hemiLight.groundColor.setHex(inside ? 0x2a1a10 : 0x2e3a26); hemiLight.intensity = inside ? 0.32 : 0.8;
-  sunLight.intensity = inside ? 0.04 : 0.7;
-  scene.fog.color.setHex(inside ? 0x1c140d : 0xb88a72); scene.fog.near = inside ? 25 : 160; scene.fog.far = inside ? 420 : 1150;
+  const noon = SC.daylight === 'noon';
+  scene.background = noon ? NOON_SKY : DUSK_SKY; sun.visible = !noon;
+  sunLight.color.setHex(noon ? 0xfff6e8 : 0xffc08a);
+  if (inside) {
+    hemiLight.color.setHex(0xffa860); hemiLight.groundColor.setHex(0x2a1a10); hemiLight.intensity = 0.32; sunLight.intensity = 0.04;
+    scene.fog.color.setHex(0x1c140d); scene.fog.near = 25; scene.fog.far = 420;
+  } else if (noon) {   // 한낮
+    hemiLight.color.setHex(0xf4f8ff); hemiLight.groundColor.setHex(0x4d5f38); hemiLight.intensity = 1.0; sunLight.intensity = 0.95;
+    scene.fog.color.setHex(0xc6d4e2); scene.fog.near = 220; scene.fog.far = 1500;
+  } else {             // 해 질 녘 (기본)
+    hemiLight.color.setHex(0xffd6b0); hemiLight.groundColor.setHex(0x2e3a26); hemiLight.intensity = 0.8; sunLight.intensity = 0.7;
+    scene.fog.color.setHex(0xb88a72); scene.fog.near = 160; scene.fog.far = 1150;
+  }
 }
 
 /* 지형 */
@@ -2125,6 +2190,12 @@ function step(dt) {
     } else c.s -= c.v * dt; if (c.s < p.s - 300) c.active = false; });
 
 
+  if (R.tunnel && R.tunnel.portal && prevS < R.tunnel.s0 && p.s >= R.tunnel.s0) {   // 터널에 들어서는 순간 (어둠 적응 시작)
+    G.enterWall = performance.now();
+    let gap = Infinity; G.cars.forEach(c => { if (c.active && c.fwd && Math.abs(c.x - p.x) < 1.6 && c.s > p.s) gap = Math.min(gap, c.s - p.s - 2 * CAR_HL); });
+    if (Math.abs(SC.truck.x - p.x) < 1.9 && tr.s > p.s) gap = Math.min(gap, tr.s - p.s - SC.truck.hl - CAR_HL);
+    ev('tunnelEnter', { gap: isFinite(gap) ? gap : null, v: p.v });
+  }
   if (R.tunnel && prevS < R.tunnel.s1 && p.s >= R.tunnel.s1) {
     G.exitT = t; G.exitWall = performance.now();
     // 나서는 순간 내 차로의 앞차까지 거리 (눈부심 때문에 보이지 않던 정보)
@@ -2482,6 +2553,7 @@ function captionFor(e) {
   const end = G.end, toCrash = end.kind === 'crash' ? (end.t - e.t).toFixed(1) : null;
   switch (e.type) {
     case 'sign': return '앞지르기 금지 표지판입니다. 여기부터 중앙선이 두 줄 실선으로 바뀝니다.';
+    case 'tunnelEnter': return e.gap != null ? `터널에 들어서는 순간입니다. 어두워 보이지 않았지만, 앞차는 ${Math.max(0, e.gap).toFixed(0)}m 앞에 있었습니다. (시속 ${Math.round(e.v * 3.6)}km)` : '터널에 들어서는 순간입니다.';
     case 'tunnelExit': return e.gap != null ? `터널을 나서는 순간입니다. 눈이 부셔 보이지 않았지만, 앞차는 ${Math.max(0, e.gap).toFixed(0)}m 앞에 있었습니다. (시속 ${Math.round(e.v * 3.6)}km)` : '터널을 나서는 순간입니다.';
     case 'overtake':
       if (e.seen) return '맞은편에서 오는 차가 보이는 상태에서 중앙선을 넘었습니다.';
@@ -2691,7 +2763,7 @@ function showResult() {
       body = (G.flags.cutT ? '' : '') + '합류 지점에서는 합류하던 차가 갑자기 들어올 수 있습니다. 미리 속도를 줄여 앞 공간을 남겨 두세요.';
     } else if (e.type === 'jam') {
       title = '정체 차량 추돌'; sub = '';
-      body = '터널을 나오는 순간 밝은 빛에 눈이 적응하는 동안은 앞이 거의 보이지 않습니다. 출구 바로 뒤에서 정체가 시작되고 있었습니다.';
+      body = SC.jamBody || '터널을 나오는 순간 밝은 빛에 눈이 적응하는 동안은 앞이 거의 보이지 않습니다. 출구 바로 뒤에서 정체가 시작되고 있었습니다.';
     } else if (e.type === 'lane') {
       title = '옆 차로 차량과 충돌'; sub = '';
       body = '옆 차로가 막혀 있을 때는 속도로만 피할 수 있습니다.';
@@ -2913,6 +2985,13 @@ function loop(now) {
       op = u < 0.12 ? u / 0.12 * 0.97 : u < 1.5 ? 0.97 - (u - 0.12) / 1.38 * 0.1 : Math.max(0, 0.87 * (1 - (u - 1.5) / 1.0));
     }
     const gl = $('glare'); if (gl._op !== op) { gl.style.opacity = op; gl._op = op; }
+    // 터널 입구 어둠 적응: 0.15초 만에 캄캄해지고, 2초까지 거의 안 보이다가 1.5초에 걸쳐 눈이 적응한다
+    let dk = 0;
+    if (G && G.enterWall && (state === 'drive' || state === 'crashing')) {
+      const u = (performance.now() - G.enterWall) / 1000;
+      dk = u < 0.15 ? u / 0.15 * 0.93 : u < 2.0 ? 0.93 - (u - 0.15) / 1.85 * 0.1 : Math.max(0, 0.83 * (1 - (u - 2.0) / 1.5));
+    }
+    const dg = $('dark'); if (dg._op !== dk) { dg.style.opacity = dk; dg._op = dk; }
   }
   renderer.render(scene, camera);
 }
