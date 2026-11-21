@@ -872,8 +872,9 @@ function buildGround() {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  { const M = GROUND_TEX.userData.m, uv = []; for (let i = 0; i < pos.length; i += 3) uv.push(pos[i] / M, -pos[i + 2] / M); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); }
   g.setIndex(idx); g.computeVertexNormals();
-  world.add(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true })));
+  world.add(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true, map: GROUND_TEX, color: 0xffffff })));
 }
 
 /* 도로와 차선 */
@@ -883,8 +884,30 @@ function ribbon(arr, s0, s1, x0, x1, yoff, step = 2) {
     arr.push(x0, ya, -sa, x1, ya, -sa, x1, yb, -sb, x0, ya, -sa, x1, yb, -sb, x0, yb, -sb);
   }
 }
+// 질감: 코드로 그린 작은 그림을 바둑판처럼 반복해 입힌다 (도로·보도·땅). 그림은 한 번만 만든다
+function noiseTex(size, px, repeatM) {
+  const c = document.createElement('canvas'); c.width = c.height = size; const g = c.getContext('2d'), im = g.createImageData(size, size), r = rng(size * 7 + 3);
+  // 부드러운 얼룩용 저해상도 잡음 (8×8 격자를 보간)
+  const N = 8, grid = Array.from({ length: N * N }, () => r());
+  const smooth = (x, y) => { const gx = x / size * N, gy = y / size * N, x0 = Math.floor(gx), y0 = Math.floor(gy), fx = gx - x0, fy = gy - y0;
+    const v = (i, j) => grid[((j % N + N) % N) * N + ((i % N + N) % N)];
+    const a = v(x0, y0) + (v(x0 + 1, y0) - v(x0, y0)) * fx, b = v(x0, y0 + 1) + (v(x0 + 1, y0 + 1) - v(x0, y0 + 1)) * fx; return a + (b - a) * fy; };
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) { const k = clamp(px(x, y, r(), smooth(x, y)), 0, 1) * 255, i = (y * size + x) * 4; im.data[i] = im.data[i + 1] = im.data[i + 2] = k; im.data[i + 3] = 255; }
+  g.putImageData(im, 0, 0);
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy()); t.userData.m = repeatM; return t;
+}
+// 아스팔트: 자잘한 골재 점 + 은은한 얼룩 (4m마다 반복)
+const ASPHALT_TEX = noiseTex(256, (x, y, n, sm) => 0.86 + (n - 0.5) * 0.22 + (sm - 0.5) * 0.16 - (n > 0.985 ? 0.25 : 0), 4);
+// 보도: 50cm 보도블록 줄눈 + 얼룩 (2m마다 반복)
+const WALK_TEX = noiseTex(256, (x, y, n, sm) => ((x % 64 < 2) || (y % 64 < 2) ? 0.62 : 0.9) + (n - 0.5) * 0.1 + (sm - 0.5) * 0.12, 2);
+// 땅(풀·흙): 덩어리진 얼룩 (6m마다 반복). 색은 지형 꼭짓점 색이 정하고 이 그림은 밝기만 바꾼다
+const GROUND_TEX = noiseTex(128, (x, y, n, sm) => 0.94 + (sm - 0.5) * 0.3 + (n - 0.5) * 0.14, 6);   // 평균 밝기는 예전과 거의 같게
 function ribbonMesh(arr, mat) {
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(arr, 3)); g.computeVertexNormals();
+  if (mat.map && mat.map.userData.m) {   // 질감 좌표: 위에서 본 위치 그대로 (질감 크기 m마다 한 번)
+    const M = mat.map.userData.m, uv = []; for (let i = 0; i < arr.length; i += 3) uv.push(arr[i] / M, -arr[i + 2] / M);
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  }
   const m = new THREE.Mesh(g, mat); world.add(m); return m;
 }
 // 골목: 바닥, 양옆 시멘트 블록 담장(높이 2.1m: 운전석 눈높이보다 높아 골목 안을 가린다), 왼쪽 갈림 골목, 오른쪽 대문과 마당.
@@ -1116,7 +1139,7 @@ function buildRoad() {
       ribbon(white, ix + 0.3, ix + HW - 0.1, HW + 3.0, HW + 3.4, 0.02, 0.4);    // 가로 도로 정지선 (양쪽)
       ribbon(white, ix - HW + 0.1, ix - 0.3, -HW - 3.4, -HW - 3.0, 0.02, 0.4);
     }
-    ribbonMesh(walk, lambert(0x6b6a68));
+    ribbonMesh(walk, new THREE.MeshLambertMaterial({ color: 0x777674, map: WALK_TEX }));
   } else {                    // 왕복 2차로 국도
     ribbon(asphalt, -320, 1720, -3.6, 3.6, 0);
     ribbon(shoulder, -320, 1720, -4.7, -3.6, -0.03); ribbon(shoulder, -320, 1720, 3.6, 4.7, -0.03);
@@ -1125,7 +1148,7 @@ function buildRoad() {
     ribbon(yellow, R.zoneStart, R.zoneEnd, -0.24, -0.1, 0.02); ribbon(yellow, R.zoneStart, R.zoneEnd, 0.1, 0.24, 0.02);
     ribbonMesh(shoulder, lambert(0x5a5148));
   }
-  ribbonMesh(asphalt, lambert(0x2b2d31));
+  ribbonMesh(asphalt, new THREE.MeshLambertMaterial({ color: 0x33363b, map: ASPHALT_TEX }));
   ribbonMesh(white, lineMat(0xd8d8d0));
   ribbonMesh(yellow, lineMat(0xf2b705));
 }
