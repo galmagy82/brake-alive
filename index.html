@@ -728,8 +728,12 @@ function buildTunnel() {
   for (let i = 0; i < n; i++) [0.9, xr - 0.9].forEach((x, j) => { mtx.makeTranslation(x, y0 + top - 0.1, -(T.s0 + 3 + i * 6)); lamps.setMatrixAt(i * 2 + j, mtx); });
   tunnelGrp.add(lamps);
   // 출구: 터널 안에서 보면 바깥이 하얗게 날아가 보인다
-  tunnelExit = new THREE.Mesh(new THREE.PlaneGeometry(xr + 0.3, top), new THREE.MeshBasicMaterial({ color: 0xfffaf0, fog: false, transparent: true, opacity: 0.96, depthWrite: false }));
-  tunnelExit.position.set(xr / 2, y0 + top / 2, -(T.s1 + 0.3)); world.add(tunnelExit);
+  // 출구: 바깥이 보이되 밝은 빛에 뿌옇게 날아가 보인다 (더하기 합성: 바깥 모습 위에 흰 빛을 얹는다)
+  tunnelExit = new THREE.Group(); world.add(tunnelExit);
+  const haze = new THREE.Mesh(new THREE.PlaneGeometry(xr + 0.3, top), new THREE.MeshBasicMaterial({ color: 0xfff4e0, fog: false, transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending }));
+  haze.position.set(xr / 2, y0 + top / 2, -(T.s1 + 0.3)); tunnelExit.add(haze);
+  // 출구 둘레로 번지는 빛 (가장자리가 흐릿하게 보이도록)
+  const bloom = halo(xr * 2.4, 0.45); bloom.material.fog = false; bloom.material.color.setHex(0xfff0d8); bloom.position.set(xr / 2, y0 + top / 2, -(T.s1 - 1)); tunnelExit.add(bloom);
 }
 // 터널 안이면 어둡고 주황빛, 밖이면 원래 해 질 녘 빛
 let envIn = null;
