@@ -1776,7 +1776,8 @@ function makePed() {
   const coat = lambert(0x5a6e8c), pants = lambert(0x2b2f36), hair = PED_HAIR_MS[pedHairK++ % PED_HAIR_MS.length];
   const put = (geo, mat, x, y, z, sx, sy, sz, parent) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); if (sx) m.scale.set(sx, sy, sz); (parent || g).add(m); return m; };
   put(new THREE.CylinderGeometry(0.205, 0.165, 0.56, 14), coat, 0, 1.2, 0, 1, 1, 0.62);          // 몸통: 어깨 넓고 허리 좁게, 앞뒤로 납작
-  [-1, 1].forEach(sg => put(new THREE.SphereGeometry(0.075, 10, 8), coat, sg * 0.2, 1.45, 0));     // 둥근 어깨
+  // 어깨 관절: 팔 윗부분 안쪽에 작게 숨겨 팔이 흔들릴 때 틈만 메운다 (튀어나오지 않게)
+  [-1, 1].forEach(sg => put(new THREE.SphereGeometry(0.05, 10, 8), coat, sg * 0.235, 1.44, 0));
   put(new THREE.SphereGeometry(1, 14, 10), pants, 0, 0.93, 0, 0.19, 0.11, 0.13);                    // 골반
   put(new THREE.CylinderGeometry(0.048, 0.055, 0.09, 10), PED_SKIN_M, 0, 1.53, 0);                  // 목
   put(new THREE.SphereGeometry(0.115, 16, 12), PED_SKIN_M, 0, 1.665, 0, 0.92, 1.06, 1);             // 머리
