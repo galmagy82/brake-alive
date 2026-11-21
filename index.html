@@ -847,29 +847,6 @@ function buildTunnel() {
   // 출구 둘레로 번지는 빛 (가장자리가 흐릿하게 보이도록)
   const bloom = halo(xr * 2.4, 0.25); bloom.material.fog = false; bloom.material.color.setHex(0xfff0d8); bloom.position.set(xr / 2, y0 + top / 2, -(T.s1 - 1)); tunnelExit.add(bloom);
 }
-// 구름: 코드로 그린 뭉게구름 4가지를 멀리(앞쪽 0.6~2.4km, 높이 180~450m)에 띄운다. 색은 시간대에 맞춰 물들인다
-const CLOUD_MS = [0, 1, 2, 3].map(v => {
-  const r = rng(300 + v);
-  const tex = texFrom(256, 128, g => {
-    for (let i = 0; i < 22; i++) {   // 부드러운 흰 원을 겹쳐 뭉게구름 모양
-      const x = 40 + r() * 176, y = 52 + (r() - 0.5) * 30 - Math.sin((x - 40) / 176 * Math.PI) * 18, rad = 18 + r() * 30;
-      const gr = g.createRadialGradient(x, y, 0, x, y, rad); gr.addColorStop(0, 'rgba(255,255,255,.9)'); gr.addColorStop(0.6, 'rgba(255,255,255,.55)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
-      g.fillStyle = gr; g.fillRect(x - rad, y - rad, rad * 2, rad * 2);
-    }
-    g.globalCompositeOperation = 'source-atop';   // 아래쪽은 그늘져 어둡게
-    const sh = g.createLinearGradient(0, 30, 0, 110); sh.addColorStop(0, 'rgba(120,120,130,0)'); sh.addColorStop(1, 'rgba(110,110,125,.55)'); g.fillStyle = sh; g.fillRect(0, 0, 256, 128);
-  });
-  return new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, fog: false, opacity: 0.92 });
-});
-const clouds = new THREE.Group(); scene.add(clouds);
-{
-  const r = rng(808);
-  for (let i = 0; i < 20; i++) {
-    const sp = new THREE.Sprite(CLOUD_MS[i % 4]), w = 280 + r() * 340;
-    sp.scale.set(w, w * (0.42 + r() * 0.15), 1); sp.position.set((r() - 0.5) * 3000, 180 + r() * 270, -(600 + r() * 1800)); clouds.add(sp);
-  }
-}
-clouds.visible = !LOOK_OLD;
 // 터널 안이면 어둡고 주황빛, 밖이면 원래 해 질 녘 빛
 let envIn = null;
 function tunnelEnv(ps) {
@@ -879,7 +856,6 @@ function tunnelEnv(ps) {
   if (inside === envIn) return; envIn = inside;
   const noon = SC.daylight === 'noon';
   scene.background = noon ? NOON_SKY : DUSK_SKY; sun.visible = !noon;
-  CLOUD_MS.forEach(m => m.color.setHex(noon ? 0xffffff : 0xffc2a0));   // 한낮은 흰 구름, 해 질 녘은 주황·분홍빛
   sunLight.color.setHex(noon ? 0xfff6e8 : 0xffc08a);
   if (inside) {
     hemiLight.color.setHex(0xffa860); hemiLight.groundColor.setHex(0x2a1a10); hemiLight.intensity = 0.32; sunLight.intensity = 0.04;
