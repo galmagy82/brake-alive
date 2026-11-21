@@ -791,6 +791,9 @@ function buildTunnel() {
   tunnelGrp = new THREE.Group(); world.add(tunnelGrp); tunnelFoot = new THREE.Group(); tunnelFoot.visible = false; world.add(tunnelFoot);
   const TW = !!T.twin;   // 쌍굴: 맞은편 방향 터널이 왼쪽에 나란히 (가운데 벽을 함께 쓴다)
   (TW ? [-xr, 0, xr] : [0, xr]).forEach(x => { const f = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.5, L), wallM); f.position.set(x, y0 + 0.25, mid); tunnelFoot.add(f); });
+  // 리플레이: 터널 안이었던 바닥을 어둡게 (어디부터 어두웠는지 보이도록)
+  { const w = TW ? 2 * xr : xr, sh = new THREE.Mesh(new THREE.PlaneGeometry(w, L).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.45, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }));
+    sh.position.set(TW ? 0 : xr / 2, y0 + 0.06, mid); tunnelFoot.add(sh); }
   const add = (w, hh, x, y, m) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, hh, L), m); b.position.set(x, y0 + y, mid); tunnelGrp.add(b); };
   // 아치 천장: 반원통(가로 반지름 xr/2, 세로 top-wallH)을 터널 길이만큼 (안쪽에서도 보이게 양면)
   const archM = new THREE.MeshLambertMaterial({ color: 0x3a3833, side: THREE.DoubleSide });
@@ -3034,6 +3037,11 @@ function drawPlan(f) {
     pctx.fillStyle = 'rgba(242,183,5,.9)'; pctx.fillRect(0, Y(-0.2), W, Math.max(1.5, 0.4 * vx));            // 중앙선
     pctx.strokeStyle = 'rgba(216,216,208,.45)'; pctx.lineWidth = 1; pctx.setLineDash([6, 8]);
     [-3.5, 3.5].forEach(x => { pctx.beginPath(); pctx.moveTo(0, Y(x)); pctx.lineTo(W, Y(x)); pctx.stroke(); }); pctx.setLineDash([]);
+    if (R.tunnel) {   // 터널 구간: 어두운 띠 + 벽 선
+      const T = R.tunnel, xr = tunnelXR(), xa = T.twin ? -xr : 0, a = X(T.s0), b = X(T.s1);
+      pctx.fillStyle = 'rgba(0,0,0,.45)'; pctx.fillRect(a, Y(xa), b - a, Y(xr) - Y(xa));
+      pctx.fillStyle = 'rgba(160,150,135,.9)'; (T.twin ? [-xr, 0, xr] : [0, xr]).forEach(x => pctx.fillRect(a, Y(x) - 1, b - a, 2));
+    }
   }
   if (R.crosswalk) { pctx.fillStyle = 'rgba(216,216,208,.5)'; for (let x = -HW + 0.4; x < HW - 0.4; x += 1) pctx.fillRect(X(R.crosswalk - 2), Y(x), 4 * k, 0.5 * vx); }
   // 보이지 않는 구역: 내 눈에서 앞차의 네 모서리로 선을 그었을 때 가장 바깥 두 선 사이, 앞차 너머
