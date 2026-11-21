@@ -2580,7 +2580,9 @@ function loop(now) {
     idleT += dt;
     const ps = SC.player.s;
     drawWorld({ t: -1, ps, px: SC.player.x, ts: SC.truck.s, cs: G.cars.map(() => NaN) }, true);
-    camera.position.set(-5.5 + Math.sin(idleT * 0.12) * 1.5, h(ps - 22) + 5.5, -(ps - 22));   // 길가 나무에 가리지 않는 위치 camera.lookAt(1, h(ps + 60) + 4, -(ps + 140));
+    // 길가 나무에 가리지 않는 위치
+    camera.position.set(-5.5 + Math.sin(idleT * 0.12) * 1.5, h(ps - 22) + 5.5, -(ps - 22));
+    camera.lookAt(1, h(ps + 60) + 4, -(ps + 140));
   }
   renderer.render(scene, camera);
 }
