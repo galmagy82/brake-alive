@@ -1311,6 +1311,16 @@ function wheels(g, xs, zs, r, bw) {
   }));
 }
 function halo(scale, opacity) { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: HALO, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity })); s.scale.set(scale, scale, 1); return s; }
+// 차 아래 그림자: 가장자리가 흐린 어두운 판 하나 (실시간 그림자 대신 가볍게 땅에 붙어 보이게)
+const SHADOW_M = (() => {
+  const c = document.createElement('canvas'); c.width = 64; c.height = 128; const g = c.getContext('2d');
+  // 세로로 2배 늘린 원형 그라데이션 = 차 모양에 맞는 타원 (가장자리는 완전히 투명)
+  const gr = g.createRadialGradient(32, 32, 4, 32, 32, 32); gr.addColorStop(0, 'rgba(0,0,0,0.85)'); gr.addColorStop(0.6, 'rgba(0,0,0,0.55)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+  g.save(); g.scale(1, 2); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); g.restore();
+  return new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, opacity: 0.55, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+})();
+const SHADOW_G = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+function addShadow(outer, w, l, z) { const m = new THREE.Mesh(SHADOW_G, SHADOW_M); m.scale.set(w, 1, l); m.position.set(0, 0.04, z); m.renderOrder = -1; outer.add(m); return m; }
 function makeCar(color, lights) {
   const outer = new THREE.Group(), g = new THREE.Group(); outer.add(g);
   g.add(box(1.8, 0.62, 4.3, lambert(color), 0, 0.64, 0));
@@ -1322,6 +1332,7 @@ function makeCar(color, lights) {
   if (lights) {
     [-0.56, 0.56].forEach(x => { const s = halo(1.7, 0.95); s.position.set(x, 0.74, -2.3); g.add(s); });
   }
+  addShadow(outer, 2.3, 5.0, 0);
   scene.add(outer); return { outer, inner: g };
 }
 function addBlinker(car) {   // 왼쪽 방향지시등 (차 안쪽 좌표에서 왼쪽은 -x)
@@ -1372,6 +1383,7 @@ function makeTruck() {
     const g = halo(1.4, 0.85); g.material.color.setHex(0xffb340); g.position.set(x, y, z + (z > 0 ? 0.1 : -0.1)); blink.add(g);
   });
   blink.visible = false; outer.add(blink); outer.userData.blink = blink;
+  addShadow(outer, 3.0, 11.0, -0.2);
   scene.add(outer); return outer;
 }
 function makeVan() {   // 정차한 승합차: 키가 커서 그 앞에 선 사람을 가린다
@@ -1400,6 +1412,7 @@ function makeVan() {   // 정차한 승합차: 키가 커서 그 앞에 선 사�
     const g = halo(1.2, 0.85); g.material.color.setHex(0xffb340); g.position.set(x, y, z + (z > 0 ? 0.1 : -0.1)); blink.add(g);
   });
   blink.visible = false; outer.add(blink); outer.userData.blink = blink;
+  addShadow(outer, 2.4, 5.8, 0.1);
   scene.add(outer); return outer;
 }
 function makeBus() {   // 시내버스: 길고 높아 뒤따르는 차를 가린다 (앞이 -z)
@@ -1424,6 +1437,7 @@ function makeBus() {   // 시내버스: 길고 높아 뒤따르는 차를 가린
     const g = halo(1.4, 0.85); g.material.color.setHex(0xffb340); g.position.set(x, y, z + (z > 0 ? 0.1 : -0.1)); blink.add(g);
   });
   blink.visible = false; outer.add(blink); outer.userData.blink = blink;
+  addShadow(outer, 3.0, 12.2, 0);
   scene.add(outer); return outer;
 }
 function makeLead(type) {
