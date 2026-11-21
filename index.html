@@ -63,15 +63,6 @@ body { background: var(--asphalt); color: var(--paper); font-family: var(--f-bod
 #hint { grid-column: 1 / -1; justify-self: center; font-size: 14px; font-weight: 500; padding: 6px 12px; background: var(--paint); color: var(--asphalt); border-radius: 3px; text-align: center; animation: slidein .3s ease; }
 
 /* lane position indicator */
-#laneInd { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 18px); display: grid; justify-items: center; gap: 5px; pointer-events: none; }
-#laneInd.touch { bottom: calc(env(safe-area-inset-bottom, 0px) + 122px); }
-.lane-road { position: relative; width: 132px; height: 30px; background: rgba(14,18,24,.7); border-left: 2px solid #d8d8d0; border-right: 2px solid #d8d8d0; }
-.lane-road.four { background: linear-gradient(rgba(216,216,208,.55), rgba(216,216,208,.55)) calc(25% - 1px) 0 / 2px 100% no-repeat, linear-gradient(rgba(216,216,208,.55), rgba(216,216,208,.55)) calc(75% - 1px) 0 / 2px 100% no-repeat, rgba(14,18,24,.7); }
-.lane-road::before { content: ""; position: absolute; left: calc(50% - 4px); top: 0; bottom: 0; width: 8px; border-left: 2px solid var(--paint); border-right: 2px solid var(--paint); box-sizing: border-box; }
-.lane-car { position: absolute; top: 4px; width: 14px; height: 22px; border-radius: 3px; background: #4c8dff; }
-#laneText { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 3px; background: rgba(14,18,24,.7); color: var(--paper); white-space: nowrap; }
-#laneText.peek { color: var(--paint); }
-#laneText.over { background: var(--danger); color: #1a0806; }
 
 /* 출발 전 미션 카드 */
 #mcard { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(440px, calc(100% - 32px)); display: grid; justify-items: center; gap: 10px; text-align: center;
@@ -236,11 +227,6 @@ button.card:hover, button.card:focus-visible { border-color: var(--paint); trans
     <div class="hud-block hud-r"><span class="hud-label">속도</span><span class="hud-big"><span id="speed">47</span><small>km/h</small></span></div>
     <div id="mission">화물차를 추월해 40초 안에 도착하라</div>
     <div id="hint" hidden></div>
-  </div>
-
-  <div id="laneInd" hidden>
-    <div class="lane-road"><span class="lane-car" id="laneCar"></span></div>
-    <span id="laneText">내 차로</span>
   </div>
 
   <div id="mcard" hidden>
@@ -1967,12 +1953,6 @@ function updateHUD() {
   const tm = $('timer');
   if (left >= 0) { tm.textContent = left.toFixed(1); $('timerLabel').textContent = '남은 시간'; tm.className = 'hud-big' + (left < 10 ? ' low' : ''); }
   else { tm.textContent = '+' + (-left).toFixed(1); $('timerLabel').textContent = '지각'; tm.className = 'hud-big late'; }
-  $('laneCar').style.left = ((p.x + R.half) / (2 * R.half) * 132 - 7) + 'px';
-  const lt = $('laneText');
-  if (p.x < 0) { lt.textContent = '맞은편 차로 · 중앙선 넘음'; lt.className = 'over'; }
-  else if (R.type === 'city4') { lt.textContent = p.x < 3.5 ? '1차로' : '2차로'; lt.className = ''; }
-  else if (p.x < 1.3) { lt.textContent = '왼쪽으로 붙어 앞 살피는 중'; lt.className = 'peek'; }
-  else { lt.textContent = '내 차로'; lt.className = ''; }
 }
 // 내비게이션 지도: 위가 진행 방향, 내 차는 아래쪽에 고정. 실제 비율보다 도로를 넓게 그린다
 function drawNav(ps, px) {
@@ -2031,7 +2011,7 @@ function startRound() {
   alleyReplayView(false);
   ['title', 'select', 'brief', 'crash', 'arrive', 'result', 'replayUI'].forEach(id => show(id, false));
   show('hud', true); show('nav', true); show('cockpit', true); show('touch', isTouch()); show('hint', false);
-  show('laneInd', R.type !== 'alley'); $('laneInd').classList.toggle('touch', isTouch()); canvas.classList.remove('dead');
+  canvas.classList.remove('dead');
   hood.visible = true; keys.up = keys.down = keys.left = keys.right = false; updateHUD();
   // 출발 전에 미션을 먼저 보여 주고 3초 카운트다운. 이 동안 시간은 흐르지 않는다.
   { const mt = $('mcText'), b = document.createElement('b'); b.textContent = `${MISSION_T}초 안에`;
@@ -2045,7 +2025,7 @@ function crash(type, car) {
   // br: 충돌 순간 브레이크를 밟고 있었나
   G.end = { kind: 'crash', type, t: G.t, car, br: lastF && lastF.br ? 1 : 0, rear: (type === 'truck' && p.s < tr.s) || (type === 'bait' && p.s < G.bait.s), speed: p.v };
   { const r = rec(); r.plays++; r.crashes++; r.last = 'crash'; } saveStats();
-  engine(0, false); glassSound(); show('hud', false); show('touch', false); show('nav', false); show('laneInd', false);
+  engine(0, false); glassSound(); show('hud', false); show('touch', false); show('nav', false);
   $('crashLine').textContent = '';
   startChain();   // 이 순간부터 모든 차를 물리로 계산한다 (첫 충돌도 여기서 처리)
   if (type === 'ped') { G.ch.shakeT = 0; hitPeds(G.ch.byId.me); pushChainFrame(); }
@@ -2147,7 +2127,7 @@ function drawCracks() {
   cv.hidden = false;
 }
 function finish() {
-  state = 'done'; engine(0, false); show('hud', false); show('touch', false); show('nav', false); show('laneInd', false);
+  state = 'done'; engine(0, false); show('hud', false); show('touch', false); show('nav', false);
   const r = rec(), clear = G.t <= MISSION_T, prevBest = r.best;
   G.end = { kind: clear ? 'clear' : 'fail', t: G.t, late: Math.max(0, G.t - MISSION_T), newBest: clear && (!prevBest || G.t < prevBest) };
   r.plays++; r.last = clear ? 'clear' : 'fail'; if (clear) { r.clear++; if (G.end.newBest) r.best = G.t; } else r.fail++; saveStats();
@@ -2499,7 +2479,6 @@ function setScenario(sc) {   // 시나리오의 도로·앞차를 새로 짓는�
 function applyScenario(sc) {
   if (SC !== sc || !world) setScenario(sc);
   $('bHint').textContent = sc.hint;
-  document.querySelector('.lane-road').classList.toggle('four', R.type === 'city4');
   newRound();
   $('bInfo').textContent = `시나리오 ${sc.id} · ${sc.info}`;
   $('bTitle').textContent = sc.title;
