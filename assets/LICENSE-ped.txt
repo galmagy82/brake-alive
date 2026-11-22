@@ -1,0 +1,6 @@
+assets/ped.glb
+Mannequin model and animations (Walk_Loop, Idle_Loop, Jog_Fwd_Loop, Death01) from the
+"Universal Animation Library [Standard]" by Quaternius — https://quaternius.com
+License: CC0 1.0 Universal (Public Domain Dedication) — https://creativecommons.org/publicdomain/zero/1.0/
+Reduced for this game: only the mannequin mesh and four clips kept, texture coordinates and constant
+(scale / non-root translation) animation tracks removed.
