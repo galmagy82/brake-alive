@@ -1843,17 +1843,19 @@ function makePedModel() {
   const acts = { walk: clip('Walk_Loop'), jog: clip('Jog_Fwd_Loop'), idle: clip('Idle_Loop') };
   const dummy = () => { const d = new THREE.Group(); g.add(d); return d; };   // 예전 팔다리 자리 (움직임 코드가 건드려도 아무 일 없게)
   outer.visible = false; scene.add(outer);
-  return { outer, spin, body: g, legL: dummy(), legR: dummy(), armL: dummy(), armR: dummy(), coat: { color: coat }, pants: { color: pants }, isModel: true, mixer, acts, cur: null, lastPh: NaN };
+  return { outer, spin, body: g, legL: dummy(), legR: dummy(), armL: dummy(), armR: dummy(), coat: { color: coat }, pants: { color: pants }, isModel: true, mixer, acts, cur: null, lastPh: NaN, moveT: -Infinity };
 }
 // 모델 자세: 걷는 거리(위상)로 걷기·뛰기 동작의 시각을 정한다 (리플레이에서도 똑같이 나오도록 시간이 아니라 위상으로)
 function pedModelPose(pm, i, ph, mode, t) {
   const q = G.peds[i]; let act, time;
   if (mode > 0.5) { act = pm.acts.idle; time = 0; }   // 날아가거나 쓰러진 상태: 팔다리를 몸에 붙인 선 자세 (몸 전체는 spin이 돌린다)
-  else if (Math.abs(ph - pm.lastPh) < 1e-6) { act = pm.acts.idle; time = Math.max(0, t) % act.getClip().duration; }   // 서 있음
-  else {
+  // 걸음 위상이 바뀌면 '움직인 시각'을 기록. 화면이 계산보다 자주 그려져 같은 위상이 두 번 나와도 걷기를 유지하도록 0.25초 넘게 멈춰야 서 있음
+  else if (Math.abs(ph - pm.lastPh) > 1e-6 || !(t >= pm.moveT) || t - pm.moveT < 0.25) {
+    if (Math.abs(ph - pm.lastPh) > 1e-6 || !(t >= pm.moveT)) pm.moveT = t;
     act = q && (q.cv ?? q.v) >= 2.4 ? pm.acts.jog : pm.acts.walk;
     const cyc = ph * 4.2 / pm.outer.scale.x / (Math.PI * 2); time = ((cyc % 1) + 1) % 1 * act.getClip().duration;
   }
+  else { act = pm.acts.idle; time = Math.max(0, t) % act.getClip().duration; }   // 서 있음
   pm.lastPh = ph;
   if (pm.cur !== act) { if (pm.cur) pm.cur.stop(); act.play(); pm.cur = act; }
   act.time = time; pm.mixer.update(0);
