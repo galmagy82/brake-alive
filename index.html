@@ -2912,7 +2912,59 @@ function crashUpdate(dt) {
     setTimeout(() => { if (state === 'crashed') show('crash', true); }, 700);
   }
 }
+// 앞유리 금(새 모습): 접합유리 거미줄 깨짐. 가운데는 하얗게 바스러지고, 금은 가운데가 굵고 끝으로 가늘며 가지를 친다.
+// 밝은 선 + 어두운 그림자 두 겹으로 유리 단면의 입체감, 충격점 가까이 촘촘한 동심원 금, 짧은 반짝임
 function drawCracks() {
+  if (LOOK_OLD) return drawCracksOld();
+  const cv = $('cracks'), dpr = Math.min(window.devicePixelRatio || 1, 2), W = innerWidth, H = innerHeight;
+  cv.width = W * dpr; cv.height = H * dpr; const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+  const r = rng(Math.floor(G.t * 977)), cx = W * (0.38 + r() * 0.24), cy = H * (0.28 + r() * 0.18), R0 = Math.hypot(W, H);
+  g.lineJoin = 'round'; g.lineCap = 'round';
+  // 금 한 줄: 점 목록을 따라 굵기가 줄어들며 그림자·밝은 선 두 겹
+  const stroke = (pts, w0, w1, alpha) => {
+    for (let k = 1; k < pts.length; k++) {
+      const u = k / pts.length, w = w0 + (w1 - w0) * u, [x0, y0] = pts[k - 1], [x1, y1] = pts[k];
+      g.strokeStyle = `rgba(15,20,28,${0.32 * alpha})`; g.lineWidth = w + 0.8; g.beginPath(); g.moveTo(x0 + 0.9, y0 + 0.9); g.lineTo(x1 + 0.9, y1 + 0.9); g.stroke();
+      g.strokeStyle = `rgba(236,242,248,${(0.88 - 0.45 * u) * alpha})`; g.lineWidth = w; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+    }
+  };
+  const walk = (x, y, a, len, step, wig) => { const pts = [[x, y]]; for (let d = 0; d < len; d += step) { a += (r() - 0.5) * wig; const st = step * (0.6 + r() * 0.8); x += Math.cos(a) * st; y += Math.sin(a) * st; pts.push([x, y]); } return pts; };
+  // 1) 뻗어 나가는 금 + 가지
+  const N = 22, rays = [];
+  for (let i = 0; i < N; i++) {
+    const a0 = (i / N) * Math.PI * 2 + (r() - 0.5) * 0.25, len = R0 * (0.18 + r() * 0.55), pts = walk(cx, cy, a0, len, 16, 0.32);
+    rays.push(pts); stroke(pts, 2.6, 0.5, 1);
+    for (let k = 3; k < pts.length - 2; k++) if (r() < 0.1) {   // 가지
+      const [bx, by] = pts[k], ba = Math.atan2(by - cy, bx - cx) + (r() < 0.5 ? -1 : 1) * (0.35 + r() * 0.45);
+      stroke(walk(bx, by, ba, len * (0.12 + r() * 0.25), 12, 0.4), 1.2, 0.35, 0.8);
+    }
+  }
+  // 2) 동심원 금: 이웃한 두 금의 같은 거리 지점을 들쭉날쭉하게 잇는다 (가까울수록 촘촘하고 빠짐없이)
+  const at = (pts, rad) => { for (const p of pts) if (Math.hypot(p[0] - cx, p[1] - cy) >= rad) return p; return null; };
+  for (let rad = 16, k = 0; rad < R0 * 0.42; rad *= 1.42, k++) {
+    rays.forEach((pts, i) => {
+      if (r() < 0.12 + k * 0.08) return;
+      const a = at(pts, rad * (0.92 + r() * 0.16)), b = at(rays[(i + 1) % N], rad * (0.92 + r() * 0.16)); if (!a || !b) return;
+      const mx = (a[0] + b[0]) / 2 + (r() - 0.5) * rad * 0.12, my = (a[1] + b[1]) / 2 + (r() - 0.5) * rad * 0.12;
+      stroke([a, [mx, my], b], Math.max(0.5, 1.5 - k * 0.18), Math.max(0.4, 1.2 - k * 0.15), 0.85);
+    });
+  }
+  // 3) 충격점: 하얗게 바스러진 작은 조각들 + 뿌연 빛
+  for (let i = 0; i < 70; i++) {
+    const d = Math.pow(r(), 1.6) * 30, a = r() * Math.PI * 2, x = cx + Math.cos(a) * d, y = cy + Math.sin(a) * d, s0 = 2 + r() * 5;
+    g.fillStyle = `rgba(240,245,250,${0.15 + r() * 0.35})`; g.beginPath();
+    for (let v = 0; v < 3; v++) { const va = r() * Math.PI * 2; g.lineTo(x + Math.cos(va) * s0, y + Math.sin(va) * s0); } g.closePath(); g.fill();
+  }
+  const gr = g.createRadialGradient(cx, cy, 0, cx, cy, 46); gr.addColorStop(0, 'rgba(242,246,250,.6)'); gr.addColorStop(0.5, 'rgba(242,246,250,.2)'); gr.addColorStop(1, 'rgba(242,246,250,0)');
+  g.fillStyle = gr; g.fillRect(cx - 46, cy - 46, 92, 92);
+  // 4) 반짝임: 금 몇 군데에 짧고 밝은 빛
+  g.save(); g.shadowColor = 'rgba(255,255,255,.9)'; g.shadowBlur = 6; g.strokeStyle = 'rgba(255,255,255,.95)'; g.lineWidth = 1.6;
+  for (let i = 0; i < 7; i++) { const pts = rays[Math.floor(r() * N)], k = 1 + Math.floor(r() * Math.min(6, pts.length - 2)); if (!pts[k + 1]) continue;
+    g.beginPath(); g.moveTo(pts[k][0], pts[k][1]); g.lineTo(pts[k + 1][0], pts[k + 1][1]); g.stroke(); }
+  g.restore();
+  cv.hidden = false;
+}
+function drawCracksOld() {   // 예전 금 (?look=old)
   const cv = $('cracks'), dpr = Math.min(window.devicePixelRatio || 1, 2), W = innerWidth, H = innerHeight;
   cv.width = W * dpr; cv.height = H * dpr; const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
   const r = rng(Math.floor(G.t * 977)), cx = W * (0.38 + r() * 0.24), cy = H * (0.28 + r() * 0.18), R0 = Math.hypot(W, H);
