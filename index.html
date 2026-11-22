@@ -2320,8 +2320,6 @@ function seesCar(p, ts, cs, yAbove) { return los(p.s, p.x + SEAT, h(p.s) + EYE, 
 
 /* ---------- 소리 ---------- */
 let audio = null, soundOn = true;
-// 휴대폰 스피커는 300Hz 아래 소리를 거의 못 낸다 → 휴대폰에서만 중간 음역 소리를 더하고 키운다 (PC 소리는 그대로)
-const PHONE_AUDIO = matchMedia('(pointer: coarse)').matches;
 function initAudio() {
   if (audio || !soundOn) return;
   try {
@@ -2334,7 +2332,7 @@ function initAudio() {
     for (let i = 0; i < len; i++) nd[i] = Math.random() * 2 - 1;
     const ns = ac.createBufferSource(); ns.buffer = nb; ns.loop = true;
     // 타이어 노면음: 낮게 걸러진 '쏴아' (빠를수록 크게, 브레이크를 밟으면 조금 더 거칠게)
-    const rlp = ac.createBiquadFilter(); rlp.type = 'lowpass'; rlp.frequency.value = PHONE_AUDIO ? 1200 : 520;   // 휴대폰: 타이어 소리 음역을 넓힌다
+    const rlp = ac.createBiquadFilter(); rlp.type = 'lowpass'; rlp.frequency.value = 520;
     const road = ac.createGain(); road.gain.value = 0; ns.connect(rlp); rlp.connect(road); road.connect(ac.destination);
     // 급제동 마찰음: 서로 다른 대역의 잡음 두 겹 (단일 음이 아닌 거친 '끼이익') + ABS 떨림(초당 약 15번)
     const sb1 = ac.createBiquadFilter(); sb1.type = 'bandpass'; sb1.frequency.value = 900; sb1.Q.value = 2.2;
@@ -2354,23 +2352,13 @@ function initAudio() {
     const rg = ac.createGain(); rg.gain.value = 0;
     ns.connect(clp); clp.connect(cam); cam.connect(rg); rg.connect(ac.destination);
     ns.start(); clfo.start();
-    // 휴대폰용 엔진 중간 음역 층: 같은 회전수를 따라가는 '부웅' (400~1200Hz 대역). PC에서는 만들지 않는다
-    let osc2 = null, bp2 = null, g2 = null;
-    if (PHONE_AUDIO) {
-      osc2 = ac.createOscillator(); osc2.type = 'sawtooth'; bp2 = ac.createBiquadFilter(); bp2.type = 'bandpass'; bp2.frequency.value = 500; bp2.Q.value = 1.1;
-      g2 = ac.createGain(); g2.gain.value = 0; osc2.connect(bp2); bp2.connect(g2); g2.connect(ac.destination); osc2.start();
-    }
-    audio = { ac, osc, g, osc2, bp2, g2, bg, sb1, sb2, absD, road, rg, clfo, nb, press: 0, lastT: ac.currentTime, chirped: false, kmh: 0 };
+    audio = { ac, osc, g, bg, sb1, sb2, absD, road, rg, clfo, nb, press: 0, lastT: ac.currentTime, chirped: false, kmh: 0 };
   } catch (e) { audio = null; }
 }
 function engine(v, on, vol) {   // vol: 크기 배율 (기본 1, 카운트다운 중에는 0.25)
   if (!audio) return; const t = audio.ac.currentTime;
   audio.osc.frequency.setTargetAtTime(36 + v * 3.2, t, 0.12);
   audio.g.gain.setTargetAtTime(on && soundOn ? 0.05 * (vol ?? 1) : 0, t, on ? 0.2 : 0.02);
-  if (audio.osc2) {   // 휴대폰: 회전수의 4배 음 + 속도 따라 올라가는 대역
-    audio.osc2.frequency.setTargetAtTime((36 + v * 3.2) * 4, t, 0.12); audio.bp2.frequency.setTargetAtTime(clamp(380 + v * 16, 400, 1200), t, 0.12);
-    audio.g2.gain.setTargetAtTime(on && soundOn ? 0.045 * (vol ?? 1) : 0, t, on ? 0.2 : 0.02);
-  }
   if (!on) { brakeSound(false, 0); curbSound(false, 0); }
 }
 // 브레이크 소리: 경계 없이 속도에 따라 여러 층을 서서히 섞는다
@@ -2385,7 +2373,7 @@ function brakeSound(on, v) {
   const kmh = v * 3.6, want = on && soundOn && v > 0.5 ? 1 : 0;
   A.press += want > A.press ? Math.min(want - A.press, dt / 0.15) : -Math.min(A.press - want, dt / 0.05);
   const P = A.press, live = soundOn ? 1 : 0;
-  A.road.gain.setTargetAtTime(live * 0.045 * (PHONE_AUDIO ? 1.5 : 1) * clamp(kmh / 90, 0, 1) * (0.7 + 0.5 * P), t, 0.06);
+  A.road.gain.setTargetAtTime(live * 0.045 * clamp(kmh / 90, 0, 1) * (0.7 + 0.5 * P), t, 0.06);
   const sc = smooth01(30, 60, kmh) * P;
   A.bg.gain.setTargetAtTime(live * 0.11 * sc * clamp(0.6 + kmh / 200, 0, 1), t, 0.06);
   A.absD.gain.setTargetAtTime(0.45 * smooth01(40, 70, kmh) * P, t, 0.06);
@@ -2452,8 +2440,8 @@ function crashSound(k) {
   k = clamp(k, 0.2, 1);
   // 전체 출력: 여러 소리가 겹쳐도 찢어지지 않게 압축
   const out = ac.createDynamicsCompressor(); out.threshold.value = -14; out.ratio.value = 6; out.attack.value = 0.002; out.release.value = 0.25;
-  const master = ac.createGain(); master.gain.value = (0.6 + 0.5 * k) * (PHONE_AUDIO ? 1.7 : 1);   // 휴대폰은 더 크게
-  const tone = ac.createBiquadFilter(); tone.type = 'lowpass'; tone.frequency.value = PHONE_AUDIO ? 3400 : 1800; tone.Q.value = 0.5;   // 묵직하게: 높은 소리를 깎는다
+  const master = ac.createGain(); master.gain.value = 0.6 + 0.5 * k;
+  const tone = ac.createBiquadFilter(); tone.type = 'lowpass'; tone.frequency.value = 1800; tone.Q.value = 0.5;   // 묵직하게: 높은 소리를 깎는다
   out.connect(tone); tone.connect(master); master.connect(ac.destination); master.connect(crashFx(ac));
   const play = (buf, chain, at, gain) => {
     const src = ac.createBufferSource(); src.buffer = buf; const g = ac.createGain(); g.gain.value = gain;
