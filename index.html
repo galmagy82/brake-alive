@@ -1813,7 +1813,7 @@ function makePedOld() {   // 예전 나무토막 인형 (?look=old). 보행자: 
 const pedPools = { proc: [], model: [] };
 let pedMeshes = pedPools.proc;
 // 3D 사람 모델: Quaternius Universal Animation Library의 마네킹 (CC0). assets/ped.glb = 모델 + 동작 4개만 남긴 가벼운 파일
-const PED_MODEL_SCENES = ['02'];   // 먼저 02번에만 적용해 보고 넓힌다
+const PED_MODEL_SCENES = ['02', '06'];   // 3D 사람 모델을 쓰는 시나리오
 let PED_GLTF = null;
 try {
   if (!LOOK_OLD && THREE.GLTFLoader && THREE.SkeletonUtils) new THREE.GLTFLoader().load('assets/ped.glb', g => { PED_GLTF = g; }, undefined, () => {});
@@ -1839,11 +1839,12 @@ function makePedModel() {
   const model = THREE.SkeletonUtils.clone(PED_GLTF.scene); model.rotation.y = Math.PI;   // 모델은 +z를 보고 있다 → 게임의 앞(-z)으로 돌린다
   model.traverse(o => { if (o.isMesh) { o.material = mat; o.frustumCulled = false; } });
   g.add(model);
+  const head = model.getObjectByName('Head');   // 아이는 머리 뼈를 키워 머리가 큰 아이 비율로 (동작에 크기 변화가 없어 그대로 유지된다)
   const mixer = new THREE.AnimationMixer(model), clip = n => mixer.clipAction(PED_GLTF.animations.find(a => a.name === n));
   const acts = { walk: clip('Walk_Loop'), jog: clip('Jog_Fwd_Loop'), idle: clip('Idle_Loop') };
   const dummy = () => { const d = new THREE.Group(); g.add(d); return d; };   // 예전 팔다리 자리 (움직임 코드가 건드려도 아무 일 없게)
   outer.visible = false; scene.add(outer);
-  return { outer, spin, body: g, legL: dummy(), legR: dummy(), armL: dummy(), armR: dummy(), coat: { color: coat }, pants: { color: pants }, isModel: true, mixer, acts, cur: null, lastPh: NaN, moveT: -Infinity };
+  return { outer, spin, body: g, legL: dummy(), legR: dummy(), armL: dummy(), armR: dummy(), coat: { color: coat }, pants: { color: pants }, isModel: true, mixer, acts, head, cur: null, lastPh: NaN, moveT: -Infinity };
 }
 // 모델 자세: 걷는 거리(위상)로 걷기·뛰기 동작의 시각을 정한다 (리플레이에서도 똑같이 나오도록 시간이 아니라 위상으로)
 function pedModelPose(pm, i, ph, mode, t) {
@@ -2521,7 +2522,7 @@ function newRound() {
   G.peds = (SC.peds || []).map(d => ({ ...d, x: d.x0, phase: 0, fly: null, hitSpeed: 0, outT: null, cv: d.v }));
   pedPools.proc.concat(pedPools.model).forEach(m => m.outer.visible = false);
   pedMeshes = PED_GLTF && !LOOK_OLD && PED_MODEL_SCENES.includes(SC.id) ? pedPools.model : pedPools.proc;   // 3D 모델은 불러온 뒤, 정해진 시나리오에서만
-  G.peds.forEach((q, i) => { const m = pedMeshAt(i); m.outer.scale.setScalar(q.scale); m.coat.color.setHex(q.coat ?? 0x5a6e8c); m.pants.color.setHex(q.pants ?? 0x2b2f36); });
+  G.peds.forEach((q, i) => { const m = pedMeshAt(i); m.outer.scale.setScalar(q.scale); if (m.head) m.head.scale.setScalar(q.scale < 0.8 ? 1.35 : 1); m.coat.color.setHex(q.coat ?? 0x5a6e8c); m.pants.color.setHex(q.pants ?? 0x2b2f36); });
   pedMeshes.forEach((m, i) => {   // 비틀거리는 사람 머리 위의 '몽롱함' 표시 (빙글빙글 도는 소용돌이와 별)
     const on = !!(G.peds[i] && G.peds[i].stg);
     if (on && !m.dizzy) { m.dizzy = new THREE.Sprite(new THREE.SpriteMaterial({ map: DIZZY_TEX, transparent: true, depthWrite: false })); m.dizzy.scale.set(0.75, 0.75, 1); m.dizzy.position.y = 2.1; m.outer.add(m.dizzy); }
