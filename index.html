@@ -666,8 +666,8 @@ const SCENARIOS = [
     // 내 쪽 신호는 빨간불(우회전은 가능), 큰길 맞은편은 빨간불 + 좌회전 화살표 → 맞은편 1차로의 차가 유턴해 내 쪽 2차로까지 넘어온다
     road: { type: 'city4', half: 7.0, flat: 10.5, xMin: -6.3, xMax: 6.3, hillStart: 1e6, hillEnd: 1e6 + 1, crest: 1e6, H: 0,
       zoneStart: -1e4, zoneEnd: 1e4, goal: 262.25, intersection: 100, crossCars: false, leftArrow: true,
-      // 유턴 구간: 맞은편 정지선에서 10~30m 뒤 (사용자가 20m 앞당김). 이 구간의 중앙선은 노란 실선 대신 흰 점선
-      uturnZone: { s0: 120.4, s1: 140.4 } },
+      // 유턴 구간: 맞은편 정지선에서 25~45m 뒤 (사용자 조정). 이 구간의 중앙선은 노란 실선 대신 흰 점선
+      uturnZone: { s0: 135.4, s1: 155.4 } },
     // path: 가로 도로 2차로(교차로 100+5.25)에서 40m 다가와, 플레이어가 방향키(핸들)로 직접 우회전한다 (끝까지 꺾으면 반지름 4.5m).
     // rx·rs·toX는 내비게이션에 보여 줄 권장 경로 (크게 돌아 1차로). 다가올 때 시속 20km, 도는 동안 시속 18km 이하. 다 돌면 4초 동안 1.6배로 가속
     player: { s: 105.25, v: 5.56, x: 48.75, path: { kind: 'right', ix: 100, approach: 40, rx: 7, rs: 5, toX: 1.75, vcap: 5.56, vturn: 5.0, Rmin: 4.5, boost: 1.6, boostT: 4 } },
@@ -675,8 +675,8 @@ const SCENARIOS = [
     // 맞은편 2차로에서 빨간불에 서 있는 화물차
     truck: { type: 'truck', label: '화물차', parked: true, dir: -1, s: 115, x: -5.25, up: 0, flat: 0, down: 0, mass: 6, hl: 5, hw: 1.25, height: 3.5 },
     oncoming: [
-      // 유턴 차: 맞은편 1차로를 시속 40km로 달려오다가 유턴 구간(132m)에서 시속 16km로 줄여 반지름 3.5m로 돌아 내 쪽 2차로로 들어온다
-      { label: '유턴 차', s: 231, x: -1.75, v: 11, color: 0x7a2a2a, uturn: { S0: 132, R: 3.5, vt: 4.5, dec: 2.5, v2: 12, a2: 2.0 } },
+      // 유턴 차: 맞은편 1차로를 시속 40km로 달려오다가 유턴 구간(147m)에서 시속 16km로 줄여 반지름 3.5m로 돌아 내 쪽 2차로로 들어온다
+      { label: '유턴 차', s: 246, x: -1.75, v: 11, color: 0x7a2a2a, uturn: { S0: 147, R: 3.5, vt: 4.5, dec: 2.5, v2: 12, a2: 2.0 } },
       // 그 뒤에서 신호를 기다리는 차들 (서 있다)
       { label: '맞은편 차', s: 118, x: -1.75, v: 0 }, { label: '맞은편 차', s: 125, x: -1.75, v: 0 },
     ],
