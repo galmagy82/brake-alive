@@ -3806,7 +3806,7 @@ function goScreen(id) {
   show('nav', false); canvas.classList.remove('dead'); clearLabels(); state = id;
 }
 function showTitle() { newRound(); goScreen('title'); }
-function showSelect() { newRound(); renderGrid(); $('selRecord').textContent = totalText(); goScreen('select'); }
+function showSelect() { newRound(); renderGrid(); $('selRecord').textContent = ''; goScreen('select'); }   // 위쪽 요약 줄은 보이지 않는다 (카드의 통과 막대만)
 function showBrief() { $('record').textContent = recordText(); goScreen('brief'); }
 // 썸네일: 시나리오마다 운전석 시점의 '위험 직전' 장면을 게임 엔진으로 직접 찍는다
 const thumbs = {};
