@@ -752,7 +752,7 @@ const SCENARIOS = [
   {
     id: '11', title: '신호 대기', ready: true,
     info: '도심 왕복 6차로 · 신호 있는 횡단보도 · 오후 5시 30분',
-    mission: { time: 40 },
+    mission: { time: 30 },
     // 왕복 6차로. 나는 2차로, 1차로에는 버스, 3차로에는 승용차. 앞 120m 횡단보도 신호가 바뀌어 사람들이 건넌다.
     // 사람들이 다 건너고 차량 신호가 녹색이 되면 3차로 차가 출발한다. 버스는 서 있다 (버스 앞이 가려진다).
     // 녹색불 1초 뒤, 맞은편 인도에서 늦게 뛰어온 사람이 버스 앞을 지나 내 차로로 들어온다. 나는 브레이크로 직접 선다
@@ -761,8 +761,8 @@ const SCENARIOS = [
     // 신호 일정(초): 차량 노란불 0.5, 빨간불 2.0, 보행자 녹색 3.0~15.0 (12.0부터 깜빡임), 차량 녹색 16.0
     xsig: { yellowAt: 0.5, redAt: 2.0, pedOn: 3.0, pedFlash: 12.0, pedOff: 15.0, greenAt: 16.0 },
     player: { s: 0, v: 8.33, x: 5.25 },   // 시속 30km
-    // 1차로 버스: 정지선에 앞을 맞춰 서 있고, 녹색불이 돼도 출발하지 않는다
-    truck: { type: 'bus', label: '버스', parked: true, s: 109.35, x: 1.75, up: 0, flat: 0, down: 0, mass: 10, hl: 5.6, hw: 1.25, height: 3.2 },
+    // 1차로 버스: 정지선에 앞을 맞춰 서 있고, 녹색불이 돼도 출발하지 않는다. 뛰어든 사람(peds 7번째)이 다 건너면 출발 (시속 40km까지)
+    truck: { type: 'bus', label: '버스', parked: true, s: 109.35, x: 1.75, up: 0, flat: 0, down: 0, mass: 10, hl: 5.6, hw: 1.25, height: 3.2, goAfterPed: 6, goV: 11.1, goAcc: 1.5 },
     oncoming: [
       // 3차로 승용차: 정지선에 서 있다가 녹색불(16초)에 출발
       { label: '3차로 차', fwd: true, s: 112.4, x: 8.75, v: 12, startAt: 16.0, acc: 4.5 },   // 빠르게 출발: 뛰어든 사람이 3차로에 닿기 전(약 2.4초 뒤) 횡단보도를 벗어난다
@@ -3005,6 +3005,11 @@ function step(dt) {
     const S = SC.truck.script;
     if (t >= SC.signal.greenAt && !tr.braking) { tr.v += S.acc * dt; if (tr.s >= S.brakeS) { tr.braking = true; ev('truckBrake'); } }
     if (tr.braking) tr.v = Math.max(0, tr.v - S.dec * dt);
+    tr.s += tr.v * dt;
+  } else if (SC.truck.goAfterPed != null) {   // 11: 서 있다가, 정해진 사람이 다 건너면 출발한다
+    const q = G.peds[SC.truck.goAfterPed];
+    if (!tr.go && q && !q.fly && q.x >= (q.xEnd ?? SC.pedXEnd)) { tr.go = true; ev('busGo'); }
+    if (tr.go) tr.v = Math.min(SC.truck.goV, tr.v + SC.truck.goAcc * dt);
     tr.s += tr.v * dt;
   } else {
     const sl = slope(tr.s), tv = sl > 0.03 ? SC.truck.up : (sl < -0.03 ? SC.truck.down : SC.truck.flat);   // 오르막·내리막에 따라 정해진 속도
