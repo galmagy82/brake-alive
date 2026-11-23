@@ -3664,16 +3664,16 @@ function loop(now) {
     camera.position.set(-5.5 + Math.sin(idleT * 0.12) * 1.5, h(ps - 22) + 5.5, -(ps - 22));
     camera.lookAt(1, h(ps + 60) + 4, -(ps + 140));
   }
-  // 터널 출구 눈부심 (사용자 결정: 노출 과다 + 흰 막, 1.5초): 나서는 순간 0.08초 만에 노출이 6배로 확 올라
+  // 터널 출구 눈부심 (사용자 결정: 노출 과다 + 흰 막, 1.5초): 나서는 순간 0.08초 만에 노출이 8배로 확 올라
   // 밝은 하늘·도로는 하얗게 날아가고 어두운 차체·후미등은 어렴풋이 남는다. 1초에 걸쳐 원래 노출로 (?look=old는 예전 흰 판)
   {
     let op = 0, ex = 1;
     if (G && G.exitWall && (state === 'drive' || state === 'crashing')) {
       const u = (performance.now() - G.exitWall) / 1000;
       if (LOOK_OLD) op = u < 0.12 ? u / 0.12 * 0.97 : u < 1.5 ? 0.97 - (u - 0.12) / 1.38 * 0.1 : Math.max(0, 0.87 * (1 - (u - 1.5) / 1.0));
-      else {   // 노출 최대 6배 + 흰 막 최대 55%: 0.08초 만에 최대, 1초까지 거의 유지(정체가 안 보임), 1.5초까지 빠르게 걷힌다
+      else {   // 노출 최대 8배 + 흰 막 최대 92%(사용자: 순간적으로 거의 안 보이게): 0.08초 만에 최대, 1초까지 거의 유지, 1.5초까지 빠르게 걷힌다
         const w = u < 0.08 ? u / 0.08 : u < 1.0 ? 1 - 0.12 * (u - 0.08) / 0.92 : u < 1.5 ? 0.88 * Math.pow(1 - (u - 1.0) / 0.5, 1.5) : 0;
-        ex = 1 + 5 * w; op = 0.55 * w;
+        ex = 1 + 7 * w; op = 0.92 * w;
       }
     }
     if (!LOOK_OLD && renderer.toneMappingExposure !== BASE_EXPOSURE * ex) renderer.toneMappingExposure = BASE_EXPOSURE * ex;
