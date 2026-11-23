@@ -678,9 +678,9 @@ const SCENARIOS = [
     oncoming: [
       // 유턴 차: 맞은편 1차로를 시속 40km로 달려오다가 유턴 구간(137m)에서 시속 16km로 줄여 반지름 3.5m로 돌아 내 쪽 2차로로 들어온다
       { label: '유턴 차', s: 192, x: -1.75, v: 11, color: 0x7a2a2a, uturn: { S0: 137, R: 3.5, vt: 4.5, dec: 2.5, v2: 12, a2: 2.0 } },
-      // 두 번째·세 번째 유턴 차: 3초 간격 (초속 11m × 3초 = 33m씩 뒤에서 출발)
-      { label: '유턴 차', s: 225, x: -1.75, v: 11, color: 0x3c4a3e, uturn: { S0: 137, R: 3.5, vt: 4.5, dec: 2.5, v2: 12, a2: 2.0 } },
-      { label: '유턴 차', s: 258, x: -1.75, v: 11, color: 0xd0b04a, uturn: { S0: 137, R: 3.5, vt: 4.5, dec: 2.5, v2: 12, a2: 2.0 } },
+      // 두 번째·세 번째 유턴 차: 5초 간격 (초속 11m × 5초 = 55m씩 뒤에서 출발)
+      { label: '유턴 차', s: 247, x: -1.75, v: 11, color: 0x3c4a3e, uturn: { S0: 137, R: 3.5, vt: 4.5, dec: 2.5, v2: 12, a2: 2.0 } },
+      { label: '유턴 차', s: 302, x: -1.75, v: 11, color: 0xd0b04a, uturn: { S0: 137, R: 3.5, vt: 4.5, dec: 2.5, v2: 12, a2: 2.0 } },
       // 그 뒤에서 신호를 기다리는 차들 (서 있다)
       { label: '맞은편 차', s: 118, x: -1.75, v: 0 }, { label: '맞은편 차', s: 125, x: -1.75, v: 0 },
     ],
@@ -2579,7 +2579,7 @@ function newRound() {
     if (o.fwd) Object.assign(c, { fwd: true, yaw: 0 });                    // 나와 같은 방향으로 달리는 차
     if (o.follow) Object.assign(c, { follow: true, vT: o.v });   // 앞차가 느리면 따라 느려진다
     if (o.jam) c.jam = true;                                        // 정체 줄의 차
-    if (o.uturn) Object.assign(c, { uturn: o.uturn, u: 0, x0: c.x, yaw: 0, v1: o.v, turning: false });
+    if (o.uturn) { Object.assign(c, { uturn: o.uturn, u: 0, x0: c.x, yaw: 0, v1: o.v, turning: false }); addBlinker(carMeshes[c.idx]); }   // 유턴 직전 왼쪽 깜빡이
     if (o.merge) { Object.assign(c, { fwd: true, merge: true, u: o.u0, cutAt: o.cutAt, cutV: o.cutV, cutA: o.cutA }); Object.assign(c, mergePos(c.u)); }
   });   // 처음부터 정해진 위치에서 달린다
   carMeshes.forEach(m => m.outer.visible = false);
@@ -2835,7 +2835,10 @@ function drawWorld(f, showPlayer) {
     m.outer.visible = isFinite(s) && Math.abs(s - f.ps) < CAR_FAR;
     if (m.outer.visible) placeVehicle(m, s, f.cx ? f.cx[i] : c.x, !c.fwd, f.cy ? f.cy[i] : 0);   // 같은 방향 차는 뒤집지 않는다
     const cd = damageAt('c' + i, f.t); m.inner.scale.z = (cd.front || cd.rear) ? 0.76 : 1;
-    if (m.blink) m.blink.visible = isFinite(s) && f.t >= 0 && (f.cy ? f.cy[i] : 0) < 1.45 && Math.floor(f.t * 3) % 2 === 0;   // 좌회전 깜빡이 (1.5Hz)
+    // 깜빡이 (1.5Hz). 좌회전 차: 다 돌 때까지. 유턴 차: 유턴 지점 30m 전부터 다 돌 때까지 (돌고 나면 내 쪽 차로 x > 0)
+    if (m.blink) { const cy = f.cy ? f.cy[i] : 0, cxv = f.cx ? f.cx[i] : c.x;
+      const on = c.uturn ? (cxv < 0 && s - c.uturn.S0 < 30) || (cy > 0.02 && cy < Math.PI - 0.15) : cy < 1.45;
+      m.blink.visible = isFinite(s) && f.t >= 0 && on && Math.floor(f.t * 3) % 2 === 0; }
   });
   pedMeshes.forEach((pm, i) => {
     const on = !!(f.pd && f.pd.length >= (i + 1) * 6); pm.outer.visible = on; if (!on) return;
