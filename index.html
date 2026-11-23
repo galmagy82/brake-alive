@@ -729,12 +729,56 @@ const SCENARIOS = [
     headOnBody: '막힌 줄을 피해 중앙선을 넘었다가 맞은편 차와 부딪혔습니다.',
     chainBody: '커브 뒤 서행 줄을 늦게 알아챈 한 번의 추돌이 여러 차를 휘말리게 했습니다.',
   },
-  { id: '11', title: '차로 변경' },
-  { id: '12', title: '노란불 교차로' },
-  { id: '13', title: '스쿨존 골목' },
-  { id: '14', title: '운전 중 메시지' },
-  { id: '15', title: '빗길 커브' },
-  { id: '16', title: '야간 무단횡단' },
+  {
+    id: '11', title: '신호 대기', ready: true,
+    info: '도심 왕복 6차로 · 신호 있는 횡단보도 · 오후 5시 30분',
+    mission: { time: 40 },
+    // 왕복 6차로. 나는 2차로, 1차로에는 버스, 3차로에는 승용차. 앞 120m 횡단보도 신호가 바뀌어 사람들이 건넌다.
+    // 사람들이 다 건너고 차량 신호가 녹색이 되면 3차로 차가 출발한다. 버스는 서 있다 (버스 앞이 가려진다).
+    // 녹색불 1초 뒤, 맞은편 인도에서 늦게 뛰어온 사람이 버스 앞을 지나 내 차로로 들어온다. 나는 브레이크로 직접 선다
+    road: { type: 'city4', lanes: 3, half: 10.5, flat: 14, xMin: 0.9, xMax: 9.6, hillStart: 1e6, hillEnd: 1e6 + 1, crest: 1e6, H: 0,
+      zoneStart: -1e4, zoneEnd: 1e4, goal: 260, crosswalk: 120 },
+    // 신호 일정(초): 차량 노란불 2.5, 빨간불 4.0, 보행자 녹색 5.0~15.0 (12.0부터 깜빡임), 차량 녹색 19.0
+    xsig: { yellowAt: 2.5, redAt: 4.0, pedOn: 5.0, pedFlash: 12.0, pedOff: 15.0, greenAt: 19.0 },
+    player: { s: 0, v: 13.9, x: 5.25 },   // 시속 50km
+    // 1차로 버스: 정지선에 앞을 맞춰 서 있고, 녹색불이 돼도 출발하지 않는다
+    truck: { type: 'bus', label: '버스', parked: true, s: 109.35, x: 1.75, up: 0, flat: 0, down: 0, mass: 10, hl: 5.6, hw: 1.25, height: 3.2 },
+    oncoming: [
+      // 3차로 승용차: 정지선에 서 있다가 녹색불(19초)에 출발
+      { label: '3차로 차', fwd: true, s: 112.4, x: 8.75, v: 12, startAt: 19.0, acc: 4.5 },   // 빠르게 출발: 뛰어든 사람이 3차로에 닿기 전(약 2.4초 뒤) 횡단보도를 벗어난다
+      // 맞은편 차로: 신호를 기다리는 차들 (서 있다)
+      ...[[-1.75, 127.6], [-5.25, 128.0], [-8.75, 127.8], [-1.75, 134.5]].map(([x, s]) => ({ label: '맞은편 차', s, v: 0, x })),
+    ],
+    peds: [
+      // 보행자 녹색불에 양쪽에서 건너는 사람들 (모두 차량 녹색불 전에 다 건넌다)
+      { label: '보행자 1', s: 119.2, x0: 12.5, xEnd: -12.5, dir: -1, v: 2.0, startAt: 5.3, scale: 1, stay: true },
+      { label: '보행자 2', s: 120.6, x0: 12.8, xEnd: -12.8, dir: -1, v: 1.9, startAt: 5.9, scale: 1, stay: true },
+      { label: '보행자 3', s: 119.8, x0: 13.1, xEnd: -13.1, dir: -1, v: 2.1, startAt: 6.6, scale: 1, stay: true },
+      { label: '보행자 4', s: 120.9, x0: -12.5, xEnd: 12.5, dir: 1, v: 2.0, startAt: 5.5, scale: 1, stay: true },
+      { label: '보행자 5', s: 119.4, x0: -12.9, xEnd: 12.9, dir: 1, v: 1.9, startAt: 6.2, scale: 1, stay: true },
+      { label: '보행자 6', s: 120.3, x0: -13.2, xEnd: 13.2, dir: 1, v: 2.2, startAt: 7.0, scale: 1, stay: true },
+      // 늦게 뛰어드는 사람: 맞은편 인도에서 17초에 뛰기 시작해 녹색불 1초 뒤(약 20초) 버스 앞을 지나 내 차로로 들어온다
+      { label: '뛰어든 사람', title: '신호 바뀐 뒤 뛰어든 보행자', s: 120.6, x0: -13.0, xEnd: 14.0, dir: 1, v: 4.5, startAt: 17.0, scale: 1, stay: true, cap: '버스 앞으로 사람이 뛰어듭니다.' },
+    ],
+    capPedSeen: true,
+    pedTitle: '신호 대기 뒤 횡단보도 사고',
+    pedBody: '녹색불로 바뀐 직후, 신호가 끝난 횡단보도로 늦게 뛰어든 사람이 있었습니다. 1차로 버스에 가려 운전석에서 보이지 않았습니다.',
+    lessons: [
+      '녹색불로 바뀐 직후에도 횡단보도에 늦게 뛰어드는 사람이 있습니다.',
+      '옆 차로의 큰 차가 출발하지 않으면, 그 앞에 무언가 있을 수 있습니다.',
+      '옆 차가 출발했다고 따라 출발하지 말고, 횡단보도를 다시 한 번 살핀 뒤 출발합니다.',
+    ],
+    thumb: { s: 60, x: 5.25, lead: 109.35 },
+    hint: '신호와 보행자를 보고 브레이크로 직접 멈추세요. 서 있는 동안 브레이크를 계속 누르고 있어야 합니다.',
+    replay: 'plan',
+    truckBody: '정지선에 서 있던 버스와 부딪혔습니다.',
+  },
+  { id: '12', title: '차로 변경' },
+  { id: '13', title: '노란불 교차로' },
+  { id: '14', title: '스쿨존 골목' },
+  { id: '15', title: '운전 중 메시지' },
+  { id: '16', title: '빗길 커브' },
+  { id: '17', title: '야간 무단횡단' },
 ];
 let SC = SCENARIOS[0], R = SC.road, MISSION_T = SC.mission.time;
 const V_MAX = 50;                        // 최고속도 180km/h (m/s)
@@ -868,7 +912,8 @@ function buildWorld() {
   world = new THREE.Group(); scene.add(world); alleyBld = alleyHide = alleyFoot = null; tunnelExit = tunnelGrp = tunnelFoot = tunnelMouth = null; envIn = null; curveHill = null;
   buildGround(); buildRoad(); buildTrees(); buildGoal();
   if (R.type === 'city4') {
-    if (R.crosswalk) { addCrosswalkSign(R.crosswalk - 4, R.half + 1.2); addCrosswalkSign(R.crosswalk + 4, -R.half - 1.2, true); }
+    if (R.crosswalk && SC.xsig) buildSignalCrosswalk();   // 신호 있는 횡단보도 (차량 신호등 + 보행자 신호등)
+    else if (R.crosswalk) { addCrosswalkSign(R.crosswalk - 4, R.half + 1.2); addCrosswalkSign(R.crosswalk + 4, -R.half - 1.2, true); }
     if (R.intersection) buildIntersectionProps();
     if (R.merge) addMergeSign(R.merge.s0 - 45, R.half + 2.4);
     if (R.median) buildMedian();
@@ -1393,7 +1438,7 @@ function buildRoad() {
     for (let k = -320; k < 1720; k += 10) {   // 차로 경계 점선 (횡단보도·교차로 부근 제외)
       if (cw && k + 3 > cw - 12 && k < cw + 6) continue;
       if (ix && k + 3 > ix - HW - 12 && k < ix + HW + 12) continue;
-      ribbon(white, k, k + 3, -3.575, -3.425, 0.02, 1); ribbon(white, k, k + 3, 3.425, 3.575, 0.02, 1);
+      for (let L = 1; L < (R.lanes || 2); L++) { const lx = 3.5 * L; ribbon(white, k, k + 3, -lx - 0.075, -lx + 0.075, 0.02, 1); ribbon(white, k, k + 3, lx - 0.075, lx + 0.075, 0.02, 1); }   // 편도 2차로면 ±3.5, 3차로면 ±7도
     }
     if (cw) {
       for (let x = -HW + 0.4; x < HW - 0.4; x += 1.0) ribbon(white, cw - 2, cw + 2, x, x + 0.5, 0.02, 1);   // 횡단보도 얼룩무늬
@@ -1586,6 +1631,36 @@ function buildIntersectionProps() {
    [ix - 1.75, -HW - 6.0, -Math.PI / 2], [ix - 5.25, -HW - 6.4, -Math.PI / 2], [ix - 5.25, -HW - 12.8, -Math.PI / 2]].forEach(([cs, cx, yaw], k) => {
     const v = makeCar(cols[k % 4], true); scene.remove(v.outer); world.add(v.outer); placeVehicle(v, cs, cx, false, yaw);
   });
+}
+// 신호 있는 횡단보도: 차량 신호등(가로형) 두 개 + 횡단보도 양끝 보행자 신호등. 색은 updateLights가 SC.xsig 일정대로 바꾼다
+function buildSignalCrosswalk() {
+  const cw = R.crosswalk, HW = R.half; LIGHTS = [];
+  trafficLight(cw + 4, HW + 1.4, 0, 'green', false, 'main');        // 나를 보는 신호 (횡단보도 건너편 오른쪽)
+  trafficLight(cw - 4, -HW - 1.4, Math.PI, 'green', false, 'main'); // 맞은편 차를 보는 신호
+  [[HW + 1.0, -Math.PI / 2], [-HW - 1.0, Math.PI / 2]].forEach(([x, yaw]) => pedSignal(cw, x, yaw));
+}
+// 보행자 신호등: 기둥 위 상자에 빨간 사람(서 있음)·녹색 사람(걷는 중). 앞뒤 양쪽에서 보인다
+function pedSignal(s, x, yaw) {
+  const grp = new THREE.Group(), mast = lambert(0x6b6f74);
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 3.2, 8), mast); post.position.y = 1.6; grp.add(post);
+  grp.add(box(0.42, 0.8, 0.26, lambert(0x1b1d20), 0, 3.1, 0));
+  const man = (col, walk) => texFrom(64, 64, g => {
+    g.fillStyle = col; g.beginPath(); g.arc(32, 12, 7, 0, 7); g.fill(); g.lineWidth = 9; g.lineCap = 'round'; g.strokeStyle = col; g.beginPath();
+    g.moveTo(32, 22); g.lineTo(32, 40);
+    if (walk) { g.moveTo(32, 40); g.lineTo(22, 58); g.moveTo(32, 40); g.lineTo(42, 56); g.moveTo(32, 26); g.lineTo(20, 36); g.moveTo(32, 26); g.lineTo(44, 34); }
+    else { g.moveTo(28, 40); g.lineTo(28, 58); g.moveTo(36, 40); g.lineTo(36, 58); g.moveTo(26, 26); g.lineTo(24, 40); g.moveTo(38, 26); g.lineTo(40, 40); }
+    g.stroke();
+  });
+  const parts = {};
+  [['stop', '#ff3b30', false, 3.3], ['walk', '#2bd96b', true, 2.9]].forEach(([k, col, walk, y]) => {
+    const off = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.3), basic(0x222426)), on = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.3), new THREE.MeshBasicMaterial({ map: man(col, walk), transparent: true }));
+    off.position.set(0, y, 0.135); on.position.set(0, y, 0.137); grp.add(off, on);
+    const back = on.clone(); back.rotation.y = Math.PI; back.position.z = -0.137; grp.add(back);
+    parts[k] = [on, back];
+  });
+  const set = k => Object.entries(parts).forEach(([n, ms]) => ms.forEach(m => { m.visible = n === k; }));
+  set('stop'); LIGHTS.push({ role: 'ped', set, cur: 'stop' });
+  placeOnRoad(grp, s, x, h(s), yaw); world.add(grp);
 }
 function addCrosswalkSign(s, x, back) {   // 횡단보도 표지: 파란 사각형에 흰 삼각형과 걷는 사람
   const grp = new THREE.Group();
@@ -2009,7 +2084,7 @@ function makePedOld() {   // 예전 나무토막 인형 (?look=old). 보행자: 
 const pedPools = { proc: [], model: [] };
 let pedMeshes = pedPools.proc;
 // 3D 사람 모델: Quaternius Universal Animation Library의 마네킹 (CC0). assets/ped.glb = 모델 + 동작 4개만 남긴 가벼운 파일
-const PED_MODEL_SCENES = ['02', '06'];   // 3D 사람 모델을 쓰는 시나리오
+const PED_MODEL_SCENES = ['02', '06', '11'];   // 3D 사람 모델을 쓰는 시나리오
 let PED_GLTF = null;
 try {
   if (!LOOK_OLD && THREE.GLTFLoader && THREE.SkeletonUtils) new THREE.GLTFLoader().load('assets/ped.glb', g => { PED_GLTF = g; }, undefined, () => {});
@@ -2705,7 +2780,8 @@ function newRound() {
     if (o.queue) Object.assign(c, { queue: o.queue, vT: o.v, v: 0 });   // 신호 대기: 서 있다가 출발
     if (o.fwd) Object.assign(c, { fwd: true, yaw: 0 });                    // 나와 같은 방향으로 달리는 차
     if (o.follow) Object.assign(c, { follow: true, vT: o.v });   // 앞차가 느리면 따라 느려진다
-    if (o.jam) c.jam = true;                                        // 정체 줄의 차
+    if (o.jam) c.jam = true;
+    if (o.startAt != null) Object.assign(c, { go0: o.startAt, acc: o.acc || 2.5, vT: o.v, v: 0 });   // 신호 대기: 정해진 시각(녹색불)에 출발                                        // 정체 줄의 차
     if (o.uturn) { Object.assign(c, { uturn: o.uturn, u: 0, x0: c.x, yaw: 0, v1: o.v, turning: false }); addBlinker(carMeshes[c.idx]); }   // 유턴 직전 왼쪽 깜빡이
     if (o.merge) { Object.assign(c, { fwd: true, merge: true, u: o.u0, cutAt: o.cutAt, cutV: o.cutV, cutA: o.cutA }); Object.assign(c, mergePos(c.u)); }
   });   // 처음부터 정해진 위치에서 달린다
@@ -2847,7 +2923,7 @@ function step(dt) {
     tr.v += (tv - tr.v) * Math.min(1, dt * 0.6); tr.s += tr.v * dt;
   }
   if (G.bait) { const bt = G.bait, bl = slope(bt.s), bv = bl > 0.03 ? SC.bait.up : (bl < -0.03 ? SC.bait.down : SC.bait.flat); bt.v += (bv - bt.v) * Math.min(1, dt * 0.6); bt.s += bt.v * dt; }
-  G.cars.forEach(c => { if (!c.active) return; if (c.uturn) uturnMove(c, dt); else if (c.turn) turnMove(c, dt); else if (c.cross) { c.x -= c.v * dt; if (c.x < -150) c.active = false; } else if (c.merge) mergeMove(c, dt); else if (c.fwd) { if (c.follow) followMove(c, dt); c.s += c.v * dt; }
+  G.cars.forEach(c => { if (!c.active) return; if (c.uturn) uturnMove(c, dt); else if (c.turn) turnMove(c, dt); else if (c.cross) { c.x -= c.v * dt; if (c.x < -150) c.active = false; } else if (c.merge) mergeMove(c, dt); else if (c.fwd) { if (c.go0 !== undefined) c.v = G.t < c.go0 ? 0 : Math.min(c.vT, c.v + c.acc * dt); if (c.follow) followMove(c, dt); c.s += c.v * dt; }
     else if (c.queue) {   // 녹색불이 켜지고, 가로질러 달려오는 차가 모두 지나간 뒤 출발한다
       if (!c.go && G.t >= SC.signal.greenAt && !G.cars.some(r => r.cross && r.active && r.x > -9)) c.go = true;
       if (c.go) { c.v = Math.min(c.vT, c.v + c.queue.acc * dt); c.s -= c.v * dt; }
@@ -2926,6 +3002,12 @@ const AX_X = new THREE.Vector3(1, 0, 0), AX_Y = new THREE.Vector3(0, 1, 0), _pq 
 // f: { t, ps, px, py?, ts, tx?, ty?, tp?, cs[], cx[]?, cy[]? }  (사고 전 프레임에는 회전·옆 위치 값이 없다)
 // 신호 일정: 내 쪽은 greenAt까지 빨간불, 가로 도로는 그 3초 전까지 녹색 → 노란불 → 1초 전부터 빨간불
 function updateLights(t) {
+  if (SC.xsig) {   // 11: 신호 있는 횡단보도. 차량: 녹색 → 노란불 → 빨간불(보행자 녹색) → 다시 녹색. 보행자 녹색은 끝날 무렵 깜빡인다
+    const X = SC.xsig, car = t < X.yellowAt ? 'green' : t < X.redAt ? 'yellow' : t < X.greenAt ? 'red' : 'green';
+    const ped = t >= X.pedOn && t < X.pedOff ? (t >= X.pedFlash && Math.floor(t * 2) % 2 ? 'off' : 'walk') : 'stop';
+    LIGHTS.forEach(L => { const k = L.role === 'ped' ? ped : car; if (L.cur !== k) { L.set(k); L.cur = k; } });
+    return;
+  }
   if (SC.signalArrow) {   // 09: 내 쪽(가로 도로)은 계속 빨간불, 큰길은 빨간불이다가 좌회전 화살표가 함께 켜진다
     LIGHTS.forEach(L => { const k = L.role === 'cross' ? 'red' : t >= SC.signalArrow.at ? 'redArrow' : 'red'; if (L.cur !== k) { L.set(k); L.cur = k; } });
     return;
@@ -3013,7 +3095,7 @@ function drawNav(ps, px) {
   const dpr = Math.min(2, window.devicePixelRatio || 1);
   if (c.width !== Math.round(W * dpr) || c.height !== Math.round(H * dpr)) { c.width = Math.round(W * dpr); c.height = Math.round(H * dpr); }
   const g = c.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const k = H / 170, myY = H * 0.8, cx = W / 2, RW = R.type === 'city4' ? 30 : R.type === 'alley' ? 12 : 20, HW = R.half, ix = R.intersection;
+  const k = H / 170, myY = H * 0.8, cx = W / 2, RW = R.type === 'city4' ? (R.lanes === 3 ? 42 : 30) : R.type === 'alley' ? 12 : 20, HW = R.half, ix = R.intersection;
   // 앞뒤 위치: 교차로 안(가로 도로 폭)은 넓혀 그리고, 그 밖은 k 비율
   const yv = s => { if (!ix) return s * k; const d = s - ix, a = Math.abs(d); return ix * k + Math.sign(d) * (a <= HW ? a / HW * RW / 2 : RW / 2 + (a - HW) * k); };
   const Y = s => myY - (yv(s) - yv(ps));
@@ -3058,7 +3140,7 @@ function drawNav(ps, px) {
     for (let u = G.p.u; ; u = Math.min(end, u + 1)) { const q = pathPose(P, u); u === G.p.u ? g.moveTo(X(q.x), Y(q.s)) : g.lineTo(X(q.x), Y(q.s)); if (u >= end) break; }
     g.lineTo(X(P.toX), yg); g.stroke();
   } else {
-    const lx = R.type === 'alley' ? cx : cx + RW / 4, y1 = myY + 10, top = Math.max(0, yg);   // 내 방향 차로 가운데에 4px 선
+    const lx = R.type === 'alley' ? cx : R.lanes === 3 ? X(5.25) : cx + RW / 4, y1 = myY + 10, top = Math.max(0, yg);   // 내 방향 차로 가운데에 4px 선
     if (y1 > top) { g.moveTo(lx, top); g.lineTo(lx, y1); g.stroke(); }
   }
   g.lineCap = 'butt';
@@ -3481,7 +3563,7 @@ function drawPlan(f) {
   if (R.type !== 'alley') {
     pctx.fillStyle = 'rgba(242,183,5,.9)'; pctx.fillRect(0, Y(-0.2), W, Math.max(1.5, 0.4 * vx));            // 중앙선
     pctx.strokeStyle = 'rgba(216,216,208,.45)'; pctx.lineWidth = 1; pctx.setLineDash([6, 8]);
-    [-3.5, 3.5].forEach(x => { pctx.beginPath(); pctx.moveTo(0, Y(x)); pctx.lineTo(W, Y(x)); pctx.stroke(); }); pctx.setLineDash([]);
+    (R.lanes === 3 ? [-7, -3.5, 3.5, 7] : [-3.5, 3.5]).forEach(x => { pctx.beginPath(); pctx.moveTo(0, Y(x)); pctx.lineTo(W, Y(x)); pctx.stroke(); }); pctx.setLineDash([]);
     if (R.tunnel) {   // 터널 구간: 어두운 띠 + 벽 선
       const T = R.tunnel, xr = tunnelXR(), xa = T.twin ? -xr : 0, a = X(T.s0), b = X(T.s1);
       pctx.fillStyle = 'rgba(0,0,0,.45)'; pctx.fillRect(a, Y(xa), b - a, Y(xr) - Y(xa));
