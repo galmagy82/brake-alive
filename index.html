@@ -697,12 +697,42 @@ const SCENARIOS = [
     truckBody: '맞은편 차로에서 신호를 기다리던 화물차와 부딪혔습니다.',
     chainBody: '우회전과 유턴이 겹친 한 번의 충돌이 여러 차를 휘말리게 했습니다.',
   },
-  { id: '10', title: '차로 변경' },
-  { id: '11', title: '노란불 교차로' },
-  { id: '12', title: '스쿨존 골목' },
-  { id: '13', title: '운전 중 메시지' },
-  { id: '14', title: '빗길 커브' },
-  { id: '15', title: '야간 무단횡단' },
+  {
+    id: '10', title: '연속 커브', ready: true,
+    info: '국도 왕복 2차로 · 오후 6시',
+    mission: { time: 35 },
+    // 굽은 국도: 오른쪽 → 왼쪽 → 오른쪽 커브 (반지름 170~180m). 커브 안쪽은 비탈과 숲이라 커브 너머가 보이지 않는다.
+    // 첫째·둘째 커브는 막힘이 없고, 셋째 커브를 돌자마자 차들이 줄지어 천천히(시속 15km) 가고 있다. 중앙선은 두 줄 실선
+    road: { type: 'hill2', half: 3.5, flat: 6, xMin: -2.7, xMax: 2.7, hillStart: 1e6, hillEnd: 1e6 + 1, crest: 1e6, H: 0, zoneStart: -1e4, zoneEnd: 1e4, goal: 860,
+      curves: [{ s0: 150, len: 140, r: 180 }, { s0: 390, len: 140, r: -180 }, { s0: 630, len: 150, r: 170 }] },
+    player: { s: 0, v: 19.4, x: 1.75 },   // 시속 70km로 출발
+    // 서행 줄 맨 끝의 화물차 (셋째 커브 끝 무렵, 시속 15km)
+    truck: { type: 'truck', label: '화물차', brakes: true, s: 760, x: 1.75, up: 4.17, flat: 4.17, down: 4.17, mass: 6, hl: 5, hw: 1.25, height: 3.5 },
+    oncoming: [
+      // 서행 줄: 화물차 앞으로 9m 간격, 시속 15km
+      ...Array.from({ length: 25 }, (_, k) => ({ label: '서행 차량', fwd: true, jam: true, s: 772 + k * 9, v: 4.17, x: 1.75 })),
+      // 맞은편 차: 띄엄띄엄 시속 80km (막힌 줄을 피하려 중앙선을 넘으면 마주친다)
+      ...[900, 1050, 1250, 1500].map(s => ({ label: '맞은편 차', s, v: 22, x: -1.75 })),
+    ],
+    lessons: [
+      '굽은 길 너머는 운전석에서 보이지 않습니다. 커브에서는 보이는 거리 안에서 멈출 수 있는 속도로 달립니다.',
+      '앞의 커브에서 아무 일이 없었다고 다음 커브도 안전한 것은 아닙니다.',
+      '막힌 줄을 피하려고 중앙선을 넘으면 맞은편 차와 정면으로 마주칠 수 있습니다.',
+    ],
+    thumb: { s: 560, x: 1.75, lead: 760 },
+    hint: '누르고 있는 동안 왼쪽·오른쪽으로 움직이고, 떼면 그 자리를 유지합니다.',
+    replay: 'plan', sightLines: false,
+    jamBody: '커브를 돌자마자 차들이 줄지어 천천히 가고 있었습니다. 굽은 길 너머는 운전석에서 보이지 않습니다.',
+    truckBody: '커브를 돌자마자 천천히 가던 화물차가 있었습니다. 굽은 길 너머는 운전석에서 보이지 않습니다.',
+    headOnBody: '막힌 줄을 피해 중앙선을 넘었다가 맞은편 차와 부딪혔습니다.',
+    chainBody: '커브 뒤 서행 줄을 늦게 알아챈 한 번의 추돌이 여러 차를 휘말리게 했습니다.',
+  },
+  { id: '11', title: '차로 변경' },
+  { id: '12', title: '노란불 교차로' },
+  { id: '13', title: '스쿨존 골목' },
+  { id: '14', title: '운전 중 메시지' },
+  { id: '15', title: '빗길 커브' },
+  { id: '16', title: '야간 무단횡단' },
 ];
 let SC = SCENARIOS[0], R = SC.road, MISSION_T = SC.mission.time;
 const V_MAX = 50;                        // 최고속도 180km/h (m/s)
@@ -722,6 +752,40 @@ function h(s) {
   return R.H * (1 - Math.cos(2 * Math.PI * u)) / 2;
 }
 function slope(s) { return (h(s + 0.5) - h(s - 0.5)); }
+// 굽은 도로: 계산(차의 움직임·충돌)은 지금처럼 "도로를 따라 s, 옆으로 x"로 하고, 그릴 때만 중심선을 따라 굽힌다.
+// R.curves = [{ s0, len, r }] (r > 0 오른쪽으로 굽음, < 0 왼쪽). 커브 앞뒤 20m는 굽음이 서서히 붙고 풀린다.
+// 굽음이 없는 시나리오는 CURVE = null → 화면 좌표 = (x, y, -s) 그대로 (예전과 똑같다)
+let CURVE = null;
+function curvAt(s) {
+  for (const c of R.curves || []) { if (s < c.s0 || s > c.s0 + c.len) continue;
+    const e = Math.min(1, (s - c.s0) / 20, (c.s0 + c.len - s) / 20); return e / c.r; }
+  return 0;
+}
+function buildCurve() {
+  if (!R.curves || !R.curves.length) { CURVE = null; return; }
+  const S0 = -400, N = 2400, X = new Float64Array(N + 1), Z = new Float64Array(N + 1), T = new Float64Array(N + 1);
+  let x = 0, z = 400, t = 0;   // s = -400에서 (0, -(-400))
+  for (let i = 0; i <= N; i++) {
+    X[i] = x; Z[i] = z; T[i] = t;
+    const k = curvAt(S0 + i + 0.5), tn = t + k, tm = (t + tn) / 2;
+    x += Math.sin(tm); z -= Math.cos(tm); t = tn;
+  }
+  CURVE = { S0, N, X, Z, T };
+}
+// 중심선 위 s 지점: 위치(cx, cz)와 방향 t (0 = 화면 -z 쪽, + = 오른쪽으로 돈 각도). 범위 밖은 끝 방향으로 곧게 잇는다
+function cw(s) {
+  const C = CURVE, f = s - C.S0;
+  if (f <= 0 || f >= C.N) { const i = f <= 0 ? 0 : C.N, d = f <= 0 ? f : f - C.N, t = C.T[i]; return { cx: C.X[i] + Math.sin(t) * d, cz: C.Z[i] - Math.cos(t) * d, t }; }
+  const i = Math.floor(f), a = f - i;
+  return { cx: C.X[i] + (C.X[i + 1] - C.X[i]) * a, cz: C.Z[i] + (C.Z[i + 1] - C.Z[i]) * a, t: C.T[i] + (C.T[i + 1] - C.T[i]) * a };
+}
+// (s, x, y) → 화면 좌표. out(Vector3)을 주면 거기에 넣는다
+function wpos(s, x, y, out) {
+  out = out || new THREE.Vector3();
+  if (!CURVE) return out.set(x, y, -s);
+  const c = cw(s); return out.set(c.cx + x * Math.cos(c.t), y, c.cz + x * Math.sin(c.t));
+}
+const wyaw = s => CURVE ? cw(s).t : 0;   // 그 지점에서 도로가 돈 각도 (물체의 rotation.y에서 뺀다)
 const inZone = s => s >= R.zoneStart && s <= R.zoneEnd;
 
 function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
@@ -798,6 +862,7 @@ function buildWorld() {
     world.traverse(o => { if (o.geometry) o.geometry.dispose(); (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { if (m && m.map) m.map.dispose(); }); });   // 재질이 여러 개인 건물도 처리
   }
   if (SC.sunAhead) sun.position.set(30, 75, -2100); else sun.position.set(-420, 60, -1900);   // 07: 해 질 녘 해가 출구 정면에
+  buildCurve();   // 굽은 도로면 중심선을 먼저 계산
   world = new THREE.Group(); scene.add(world); alleyBld = alleyHide = alleyFoot = null; tunnelExit = tunnelGrp = tunnelFoot = tunnelMouth = null; envIn = null;
   buildGround(); buildRoad(); buildTrees(); buildGoal();
   if (R.type === 'city4') {
@@ -924,12 +989,13 @@ function bank(s, x) {
 }
 const groundY = (s, x) => h(s) - 0.25 + bank(s, x);
 function buildGround() {
-  const XS = [-420, -300, -210, -150, -110, -80, -58, -42, -30, -21, -14, -9, -6, -4, -2, 0, 2, 4, 6, 9, 14, 21, 30, 42, 58, 80, 110, 150, 210, 300, 420];
+  // 굽은 도로에서는 땅을 도로에서 160m까지만 (커브 안쪽 땅이 접히지 않게, 반지름 170m 이상으로 쓴다)
+  const XS = [-420, -300, -210, -150, -110, -80, -58, -42, -30, -21, -14, -9, -6, -4, -2, 0, 2, 4, 6, 9, 14, 21, 30, 42, 58, 80, 110, 150, 210, 300, 420].filter(x => !CURVE || Math.abs(x) <= 160);
   const pos = [], col = [], idx = [];
   const rows = []; for (let s = -320; s <= 1720; s += 4) rows.push(s);
   const r = rng(7);
   rows.forEach(s => XS.forEach(x => {
-    pos.push(x, groundY(s, x), -s);
+    const gy = groundY(s, x); if (CURVE) { wpos(s, x, gy, _cv); pos.push(_cv.x, gy, _cv.z); } else pos.push(x, gy, -s);
     const ax = Math.abs(x), n = r() * 0.05;
     if (R.type === 'alley') col.push(0.2 + n * 0.5, 0.21 + n * 0.5, 0.23 + n * 0.5);   // 주택가 바닥: 어두운 회색 (모래색으로 보이지 않게)
     else if (ax < 6) col.push(0.30 + n, 0.27 + n, 0.22 + n);
@@ -952,7 +1018,9 @@ function buildGround() {
 function ribbon(arr, s0, s1, x0, x1, yoff, step = 2) {
   for (let s = s0; s < s1 - 1e-6; s += step) {
     const sa = s, sb = Math.min(s + step, s1), ya = h(sa) + yoff, yb = h(sb) + yoff;
-    arr.push(x0, ya, -sa, x1, ya, -sa, x1, yb, -sb, x0, ya, -sa, x1, yb, -sb, x0, yb, -sb);
+    if (!CURVE) { arr.push(x0, ya, -sa, x1, ya, -sa, x1, yb, -sb, x0, ya, -sa, x1, yb, -sb, x0, yb, -sb); continue; }
+    const A0 = wpos(sa, x0, ya), A1 = wpos(sa, x1, ya), B1 = wpos(sb, x1, yb), B0 = wpos(sb, x0, yb);   // 굽은 도로: 네 모서리를 굽힌 좌표로
+    arr.push(A0.x, ya, A0.z, A1.x, ya, A1.z, B1.x, yb, B1.z, A0.x, ya, A0.z, B1.x, yb, B1.z, B0.x, yb, B0.z);
   }
 }
 // 질감: 코드로 그린 작은 그림을 바둑판처럼 반복해 입힌다 (도로·보도·땅). 그림은 한 번만 만든다
@@ -1374,12 +1442,12 @@ function buildTrees() {
     if (R.merge && x > 0 && x < R.half + 80 && s > R.merge.s0 - R.merge.len - 30 && s < R.merge.s1 + R.merge.taper + 20) continue;   // 진입로 위
     const y = groundY(s, x), H = 5 + r() * 7, rad = 1.3 + r() * 1.5, leafy = r() < 0.4;
     e.set(0, r() * Math.PI * 2, 0); q.setFromEuler(e);   // 나무마다 조금씩 돌려 같은 모양이 반복돼 보이지 않게
-    p.set(x, y + 0.9, -s); sc.set(1, leafy ? 2.6 : 1.8, 1); m.compose(p, q, sc); trunk.setMatrixAt(k, m);
+    wpos(s, x, y + 0.9, p); sc.set(1, leafy ? 2.6 : 1.8, 1); m.compose(p, q, sc); trunk.setMatrixAt(k, m);
     if (leafy) {   // 활엽수: 줄기 위에 둥근 잎 덩어리
-      const R0 = rad * 1.25; p.set(x, y + 2.0 + R0 * 0.8, -s); sc.set(R0, R0, R0); m.compose(p, q, sc); dec.setMatrixAt(nd, m);
+      const R0 = rad * 1.25; wpos(s, x, y + 2.0 + R0 * 0.8, p); sc.set(R0, R0, R0); m.compose(p, q, sc); dec.setMatrixAt(nd, m);
       col.setRGB(0.16 + r() * 0.08, 0.27 + r() * 0.1, 0.1 + r() * 0.05); dec.setColorAt(nd, col); nd++;
     } else {
-      p.set(x, y + 1.6 + H * 0.4, -s); sc.set(rad, H * 0.8, rad); m.compose(p, q, sc); con.setMatrixAt(nc, m);
+      wpos(s, x, y + 1.6 + H * 0.4, p); sc.set(rad, H * 0.8, rad); m.compose(p, q, sc); con.setMatrixAt(nc, m);
       col.setRGB(0.1 + r() * 0.07, 0.2 + r() * 0.09, 0.11 + r() * 0.05); con.setColorAt(nc, col); nc++;
     }
     k++;
@@ -1400,8 +1468,8 @@ function buildTreesOld() {   // 예전 나무 (?look=old)
     if (R.intersection && Math.abs(s - R.intersection) < R.half + 6) continue;   // 가로 도로 위
     if (R.merge && x > 0 && x < R.half + 80 && s > R.merge.s0 - R.merge.len - 30 && s < R.merge.s1 + R.merge.taper + 20) continue;   // 진입로 위
     const y = groundY(s, x), H = 5 + r() * 7, rad = 1.3 + r() * 1.5;
-    p.set(x, y + 0.9, -s); sc.set(1, 1.8, 1); m.compose(p, q, sc); trunk.setMatrixAt(k, m);
-    p.set(x, y + 1.6 + H * 0.4, -s); sc.set(rad, H * 0.8, rad); m.compose(p, q, sc); crown.setMatrixAt(k, m);
+    wpos(s, x, y + 0.9, p); sc.set(1, 1.8, 1); m.compose(p, q, sc); trunk.setMatrixAt(k, m);
+    wpos(s, x, y + 1.6 + H * 0.4, p); sc.set(rad, H * 0.8, rad); m.compose(p, q, sc); crown.setMatrixAt(k, m);
     col.setRGB(0.12 + r() * 0.08, 0.22 + r() * 0.1, 0.12 + r() * 0.05); if (crown.setColorAt) crown.setColorAt(k, col);
     k++;
   }
@@ -1413,7 +1481,7 @@ function treePoles() {
   const poleN = 50, pole = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.13, 0.16, 9, 6), lambert(0x6d6a66), poleN);
   for (let i = 0; i < poleN; i++) { let s = -200 + i * 40; if (R.intersection && Math.abs(s - R.intersection) < R.half + 4) s += 16;
     const mside = R.merge && s > R.merge.s0 - R.merge.len - 20 && s < R.merge.s1 + R.merge.taper + 10 ? -1 : 1;   // 진입로 구간에서는 반대편에
-    p.set(mside * ((R.flat || 6) + 0.6), h(s) + 4.2, -s); sc.set(1, 1, 1); m.compose(p, q, sc); pole.setMatrixAt(i, m); }
+    wpos(s, mside * ((R.flat || 6) + 0.6), h(s) + 4.2, p); sc.set(1, 1, 1); m.compose(p, q, sc); pole.setMatrixAt(i, m); }
   world.add(pole);
 }
 
@@ -1470,7 +1538,7 @@ function trafficLight(s, x, yaw, lit, unprotected, role) {
     }) }));
     plate.position.set(0, 3.38, 0.12); grp.add(plate);
   }
-  grp.position.set(x, h(s), -s); grp.rotation.y = yaw; world.add(grp);
+  placeOnRoad(grp, s, x, h(s), yaw); world.add(grp);
 }
 function buildIntersectionProps() {
   const ix = R.intersection, HW = R.half, c = HW + 1.4, up = !!R.unprotected;
@@ -1499,7 +1567,7 @@ function addCrosswalkSign(s, x, back) {   // 횡단보도 표지: 파란 사각�
     g.moveTo(124, 126); g.lineTo(100, 146); g.moveTo(124, 126); g.lineTo(150, 140); g.stroke();
   }) }));
   plate.position.y = 3.0; grp.add(plate);
-  grp.position.set(x, h(s), -s); if (back) grp.rotation.y = Math.PI; world.add(grp);
+  placeOnRoad(grp, s, x, h(s), back ? Math.PI : 0); world.add(grp);
 }
 function addMergeSign(s, x) {   // 노란 마름모: 오른쪽에서 합류 (본선 굵은 화살표 + 오른쪽에서 들어오는 가는 화살표)
   const grp = new THREE.Group();
@@ -1510,8 +1578,11 @@ function addMergeSign(s, x) {   // 노란 마름모: 오른쪽에서 합류 (본
     g.fillStyle = '#111'; g.beginPath(); g.moveTo(-14, -82); g.lineTo(-40, -44); g.lineTo(12, -44); g.closePath(); g.fill();
     g.lineWidth = 10; g.beginPath(); g.moveTo(44, 70); g.quadraticCurveTo(40, 10, -6, -6); g.stroke();
   }) }));
-  plate.position.y = 3.0; grp.add(plate); grp.position.set(x, h(s), -s); world.add(grp);
+  plate.position.y = 3.0; grp.add(plate); placeOnRoad(grp, s, x, h(s), 0); world.add(grp);
 }
+const _cv = new THREE.Vector3();   // 굽은 도로 좌표 계산용 임시 벡터
+// 무리(group)를 도로 위 (s, x)에 놓고 도로 방향에 맞춰 돌린다 (굽은 도로가 아니면 (x, h(s), -s), 회전 0)
+function placeOnRoad(o, s, x, y, rotY) { wpos(s, x, y ?? h(s), o.position); o.rotation.y = (rotY || 0) - wyaw(s); }
 function addSign(s, x) {
   const grp = new THREE.Group();
   const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 3.2, 6), lambert(0x9aa0a6)); post.position.y = 1.6; grp.add(post);
@@ -1526,7 +1597,7 @@ function addSign(s, x) {
     g.fillStyle = '#111'; g.font = 'bold 36px "Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('앞지르기 금지', 128, 38);
   }) }));
   plate.position.y = 2.25; grp.add(plate);
-  grp.position.set(x, h(s), -s); world.add(grp);
+  placeOnRoad(grp, s, x, h(s), 0); world.add(grp);
 }
 function buildGoal() {
   const s = R.goal, y = h(s);
@@ -1535,9 +1606,10 @@ function buildGoal() {
   // 터널 안이면 기둥 없이 내 쪽 터널 천장 아래에 작게 매단다 (벽·천장을 뚫지 않게)
   const T = R.tunnel, inT = !!T && s > T.s0 && s < T.s1, xr = tunnelXR();
   // 기둥 두 개 + 꼭대기를 잇는 가로 보 (간판은 그 사이에 꽉 차게 매단다: 떠 보이지 않게)
+  const gate = new THREE.Group(); placeOnRoad(gate, s, 0, y, 0); world.add(gate);   // 굽은 도로면 도로 방향에 맞춰 선다
   if (!inT) {
-    [-px, px].forEach(x => { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 7.2, 8), postMat); p.position.set(x, y + 3.6, -s); world.add(p); });
-    const beam = new THREE.Mesh(new THREE.BoxGeometry(2 * px + 0.3, 0.26, 0.26), postMat); beam.position.set(0, y + 7.0, -s); world.add(beam);
+    [-px, px].forEach(x => { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 7.2, 8), postMat); p.position.set(x, 3.6, 0); gate.add(p); });
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(2 * px + 0.3, 0.26, 0.26), postMat); beam.position.set(0, 7.0, 0); gate.add(beam);
   }
   const board = new THREE.Mesh(inT ? new THREE.PlaneGeometry(xr - 3.5, 1.6) : new THREE.PlaneGeometry(2 * px - 0.3, 2.4), new THREE.MeshBasicMaterial({ map: texFrom(768, 205, g => {
     g.fillStyle = '#12603a'; g.fillRect(0, 0, 768, 205); g.strokeStyle = '#fff'; g.lineWidth = 8; g.strokeRect(10, 10, 748, 185);
@@ -1545,13 +1617,13 @@ function buildGoal() {
     g.font = 'bold 132px "IBM Plex Mono","Menlo","Consolas",monospace'; g.fillText('GOAL', 384, 108);   // 모든 시나리오 공통 골인 간판
   }) }));
   // 터널 안: 아치 천장 아래에 들어가는 크기
-  if (inT) board.position.set(xr / 2, y + 5.2, -s); else board.position.set(0, y + 5.6, -s);
-  world.add(board);
+  if (inT) board.position.set(xr / 2, 5.2, 0); else board.position.set(0, 5.6, 0);
+  gate.add(board);
   const r = rng(3);
   for (let i = 0; i < (R.type === 'alley' ? 0 : 14); i++) {   // 골목은 주택가 건물이 따로 있다
     const side = i % 2 ? 1 : -1, bw = 10 + r() * 16, bh = 5 + r() * 12, bd = 10 + r() * 14;
     const b = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd), lambert(r() < 0.5 ? 0x8d8a86 : 0x6f7a84));
-    const bs = s + 25 + Math.floor(i / 2) * 32; b.position.set(side * (14 + bw / 2 + r() * 10), h(bs) + bh / 2, -bs); world.add(b);
+    const bs = s + 25 + Math.floor(i / 2) * 32; placeOnRoad(b, bs, side * (14 + bw / 2 + r() * 10), h(bs) + bh / 2, 0); world.add(b);
   }
 }
 
@@ -2041,8 +2113,8 @@ const lodRef = { s: 0, x: 0 }, LOD_NEAR = 40, CAR_FAR = 300;
 function placeVehicle(v, s, x, flip, yaw, pitchAdd) {
   // 도로 밖(잔디·언덕)으로 밀려난 차는 실제 땅 높이와 옆 기울기를 따른다 (도로 위에서는 땅 높이 보정이 0)
   const gb = R.type === 'alley' ? 0 : bank(s, x), roll = R.type === 'alley' ? 0 : Math.atan((bank(s, x + 0.6) - bank(s, x - 0.6)) / 1.2);
-  const o = v.outer || v; o.position.set(x, h(s) + gb, -s);
-  o.rotation.order = 'YXZ'; o.rotation.set(Math.atan(slope(s)) + (pitchAdd || 0), yaw || 0, roll);
+  const o = v.outer || v; wpos(s, x, h(s) + gb, o.position);
+  o.rotation.order = 'YXZ'; o.rotation.set(Math.atan(slope(s)) + (pitchAdd || 0), (yaw || 0) - wyaw(s), roll);
   const host = v.inner || o, wl = host.wheelList || o.wheelList;
   if (wl) {   // 바퀴 회전: 지난번 위치에서 차가 향한 방향으로 움직인 거리만큼 굴린다 (순간이동처럼 크게 바뀌면 건너뜀)
     const ud = o.userData, ds = s - (ud.lastS ?? s), dx = x - (ud.lastX ?? x);
@@ -2347,14 +2419,14 @@ function updateCrashFx(t, eye) {
       const g0 = h(d.s0) + d.y0, tl = (d.vy + Math.sqrt(d.vy * d.vy + 2 * 9.8 * d.y0)) / 9.8, tt = Math.min(tc, tl);   // 땅에 닿으면 멈춘다
       const s = d.s0 + d.vs * tt, x = d.x0 + d.vx * tt, y = Math.max(h(s) + d.b / 2, g0 + d.vy * tt - 4.9 * tt * tt);
       m.material = debrisMats[d.kind]; m.scale.set(d.a, d.b, d.d);
-      m.position.set(x, tc >= tl ? h(s) + d.b / 2 : y, -s); m.rotation.set(d.wx * tt, d.wy * tt, 0);
+      wpos(s, x, tc >= tl ? h(s) + d.b / 2 : y, m.position); m.rotation.set(d.wx * tt, d.wy * tt, 0);
       m.visible = !(eye && m.position.distanceTo(eye) < 2.6);   // 1인칭에서 눈앞을 가리는 조각은 그리지 않는다
     });
     const nSmoke = rec.ped ? 0 : rec.dvA + rec.dvB > 15 ? 5 : 2;   // 큰 충돌일수록 연기가 많다 (보행자 사고는 없음)
     for (let i = 0; i < nSmoke && smokeI < SMOKE_N; i++, smokeI++) {
       const sp = smokePool[smokeI]; sp.visible = true;
       const a = i * 2.39, rise = tc * (0.5 + (i % 3) * 0.25);
-      sp.position.set(rec.x + Math.cos(a) * 0.6, h(rec.s) + 1.0 + rise, -(rec.s + Math.sin(a) * 0.8));
+      wpos(rec.s + Math.sin(a) * 0.8, rec.x + Math.cos(a) * 0.6, h(rec.s) + 1.0 + rise, sp.position);
       const sc = 1.5 + tc * 1.6 + (i % 4) * 0.4; sp.scale.set(sc, sc, 1);
       sp.material.opacity = 0.42 * clamp((tc - i * 0.08) * 2, 0, 1);
     }
@@ -2866,7 +2938,7 @@ function drawWorld(f, showPlayer) {
   pedMeshes.forEach((pm, i) => {
     const on = !!(f.pd && f.pd.length >= (i + 1) * 6); pm.outer.visible = on; if (!on) return;
     const [qs, qx, qy, qr, qph, mode] = f.pd.slice(i * 6, i * 6 + 6), sc = pm.outer.scale.x;
-    pm.outer.position.set(qx, h(qs) + qy, -qs);   // 걷는 중: qy = 0(발), 날아가는 중: qy = 몸 가운데 높이
+    wpos(qs, qx, h(qs) + qy, pm.outer.position);   // 걷는 중: qy = 0(발), 날아가는 중: qy = 몸 가운데 높이
     if (pm.dizzy && pm.dizzy.visible) { pm.dizzy.material.opacity = mode > 0.5 ? 0 : 1; pm.dizzy.material.rotation = f.t * 2.5; }   // 쓰러지면 표시를 감춘다
     if (mode > 0.5) {   // 부딪혀 날아가거나 쓰러진 상태: 몸 가운데를 축으로 돈다
       pm.outer.rotation.set(0, 0, 0); pm.spin.position.y = 0;
@@ -2877,7 +2949,7 @@ function drawWorld(f, showPlayer) {
       // 건널 때는 오른쪽(+x), 인도에서는 내 쪽(-s)을 본다
       // 0: +x 쪽, 1: 내 쪽(-s), 2: -x 쪽, 3: GOAL 쪽(+s)을 본다
       // 3 + 기울기: 비틀거릴 때 몸이 좌우로 기우뚱
-      pm.outer.rotation.set(0, qr > 2.5 ? 0 : qr > 1.5 ? Math.PI / 2 : qr > 0.5 ? Math.PI : -Math.PI / 2, qr > 2.5 ? qr - 3 : 0); pm.spin.position.y = 0.9; pm.spin.rotation.set(0, 0, 0);
+      pm.outer.rotation.set(0, (qr > 2.5 ? 0 : qr > 1.5 ? Math.PI / 2 : qr > 0.5 ? Math.PI : -Math.PI / 2) - wyaw(qs), qr > 2.5 ? qr - 3 : 0); pm.spin.position.y = 0.9; pm.spin.rotation.set(0, 0, 0);
       const sw = Math.sin(qph * 4.2 / sc) * 0.5; pm.legL.rotation.x = sw; pm.legR.rotation.x = -sw; pm.armL.rotation.x = -sw * 0.8; pm.armR.rotation.x = sw * 0.8;
     }
     if (pm.isModel) pedModelPose(pm, i, qph, mode, f.t);
@@ -2885,14 +2957,14 @@ function drawWorld(f, showPlayer) {
   if (G.peds.some(q => q.bike) && !bikeMesh) bikeMesh = makeBike();
   if (bikeMesh) {   // 자전거: 타고 있을 때는 서 있고, 부딪힌 뒤에는 옆으로 쓰러져 있다
     const on = !!f.bk && G.peds.some(q => q.bike); bikeMesh.visible = on;
-    if (on) { const [bs, bx, lie] = f.bk; bikeMesh.position.set(bx, h(bs) + 0.04 * lie, -bs); bikeMesh.rotation.set(lie * Math.PI / 2, 0, 0); }
+    if (on) { const [bs, bx, lie] = f.bk; wpos(bs, bx, h(bs) + 0.04 * lie, bikeMesh.position); bikeMesh.rotation.set(lie * Math.PI / 2, 0, 0); }
   }
   updateCrashFx(f.t, showPlayer ? null : eyeV.set(f.px + SEAT, h(f.ps) + EYE, -f.ps));
 }
 function driveCamera(dt, ps, px, yaw) {
   const tp = Math.atan(slope(ps + 5)) - 0.02; G.camPitch += (tp - G.camPitch) * Math.min(1, dt * 5);
   G.yaw = yaw ?? (G.p.yaw || 0);   // 시선은 차가 향한 쪽 (보통은 정면, 우회전 중에는 함께 돈다). 운전석 위치도 차 방향에 맞춰 돌린다
-  camera.position.set(px + SEAT * Math.cos(G.yaw), h(ps) + EYE, -(ps + SEAT * Math.sin(G.yaw))); camera.rotation.set(G.camPitch, G.yaw, 0);
+  wpos(ps + SEAT * Math.sin(G.yaw), px + SEAT * Math.cos(G.yaw), h(ps) + EYE, camera.position); camera.rotation.set(G.camPitch, G.yaw - wyaw(ps), 0);
   if (G.curb && G.p.v > 1) { const a = 0.025 * clamp(G.p.v / 15, 0.3, 1); camera.position.y += (Math.random() - 0.5) * a; camera.rotation.z = (Math.random() - 0.5) * a * 0.3; }   // 연석에 닿으면 살짝 떨린다
 }
 function updateHUD() {
@@ -2915,6 +2987,21 @@ function drawNav(ps, px) {
   const Y = s => myY - (yv(s) - yv(ps));
   const X = x => Math.abs(x) <= HW ? cx + x / HW * RW / 2 : cx + Math.sign(x) * (RW / 2 + (Math.abs(x) - HW) * k);
   g.fillStyle = '#18212b'; g.fillRect(0, 0, W, H);
+  if (CURVE) {   // 굽은 도로: 내 진행 방향이 위가 되도록, 앞뒤 도로 중심선을 실제 모양대로 그린다 (도로 폭만 넓혀 그림)
+    const c0 = cw(ps), co = Math.cos(c0.t), si = Math.sin(c0.t), C0 = wpos(ps, 0, 0);
+    const scr = s2 => { const w = wpos(s2, 0, 0, _cv), dx = w.x - C0.x, dz = w.z - C0.z; return [cx + (dx * co + dz * si) * k, myY - (dx * si - dz * co) * k]; };
+    const pts = []; for (let s2 = ps - 60; s2 <= ps + 220; s2 += 4) pts.push([s2, ...scr(s2)]);
+    const line = (w, col, off) => { g.strokeStyle = col; g.lineWidth = w; g.lineJoin = 'round'; g.beginPath();
+      pts.forEach(([, x, y], i) => { const [, xa, ya] = pts[Math.max(0, i - 1)], [, xb, yb] = pts[Math.min(pts.length - 1, i + 1)], nx = yb - ya, ny = -(xb - xa), nl = Math.hypot(nx, ny) || 1;
+        const X2 = x - nx / nl * off, Y2 = y - ny / nl * off; i ? g.lineTo(X2, Y2) : g.moveTo(X2, Y2); }); g.stroke(); };
+    line(RW, '#46525f', 0); line(1.5, '#f2b705', 0);
+    // 경로: 내 차로(오른쪽)를 따라 목적지까지 파랗게
+    const keep = pts.filter(([s2]) => s2 >= ps && s2 <= R.goal); if (keep.length > 1) { const save = pts.splice(0); pts.push(...keep); g.lineCap = 'round'; line(4, 'rgba(70,150,255,.95)', -RW / 4); g.lineCap = 'butt'; pts.splice(0); pts.push(...save); }
+    const ax = cx + px / R.half * RW / 2; g.beginPath(); g.moveTo(ax, myY - 8); g.lineTo(ax + 6, myY + 6); g.lineTo(ax, myY + 3); g.lineTo(ax - 6, myY + 6); g.closePath();
+    g.fillStyle = '#fff'; g.fill(); g.lineWidth = 1.5; g.strokeStyle = '#1f5fc4'; g.stroke();
+    const tEl = document.querySelector('.nav-turn'); if (tEl.textContent !== '↑') tEl.textContent = '↑';
+    $('navDist').textContent = Math.max(0, Math.round(R.goal - ps)) + 'm'; $('navText').textContent = '목적지'; return;
+  }
   const P = G.p && G.p.path, turning = !!(P && !P.done), yaw = turning ? (G.p.yaw || 0) : 0;
   // 지도 돌리기: 내 위치(mx)를 축으로 yaw만큼. 축의 화면 위치는 다가올 때 가운데 → 다 돌면 평소 자리로 서서히
   const mx = X(px), pivot = turning ? cx + (mx - cx) * (1 - clamp(yaw / (Math.PI / 2), 0, 1)) : mx;   // 다 돌면 실제 내 자리로 (끊김 없이)
@@ -3058,8 +3145,8 @@ function crashUpdate(dt) {
   drawWorld(f, false);
   // 1인칭: 내 차가 부딪힐 때마다 고개가 쏠리고 흔들리며, 차와 함께 돈다
   const ts = C.tc - C.shakeT, sh = 0.25 * Math.exp(-ts * 3.5), jolt = -0.16 * Math.exp(-ts * 5) * Math.cos(ts * 18);
-  camera.position.set(me.x + (Math.random() - 0.5) * sh, h(me.s) + EYE + (Math.random() - 0.5) * sh, -me.s);
-  camera.rotation.set(G.camPitch + jolt, me.yaw, (Math.random() - 0.5) * sh * 0.4);
+  wpos(me.s, me.x + (Math.random() - 0.5) * sh, h(me.s) + EYE + (Math.random() - 0.5) * sh, camera.position);
+  camera.rotation.set(G.camPitch + jolt, me.yaw - wyaw(me.s), (Math.random() - 0.5) * sh * 0.4);
   if (C.tc >= CR_DUR) {
     state = 'crashed'; canvas.classList.add('dead');
     G.end.injury = injuryRows();
@@ -3283,16 +3370,16 @@ function replayUpdate(dt) {
   let target, want;
   if (inCrash) {   // 충돌 뒤에는 가장 최근 충돌 지점을 가까이서 비춘다
     const im = C.impacts.filter(r => r.t <= RP.t).pop() || C.impacts[0], y = h(im.s);
-    target = new THREE.Vector3(im.x, y + 0.6, -im.s);
-    want = new THREE.Vector3(-7, y + 9, -(im.s - 13));   // 화물차에 가리지 않도록 맞은편 차로 쪽 위에서
+    target = wpos(im.s, im.x, y + 0.6);
+    want = wpos(im.s - 13, -7, y + 9);   // 화물차에 가리지 않도록 맞은편 차로 쪽 위에서
   } else {
-    target = new THREE.Vector3(-1, h(f.ps + 45) + 1, -(f.ps + 45));
-    want = new THREE.Vector3(30, Math.max(h(f.ps), h(f.ps + 60)) + 20, -(f.ps - 18));
+    target = wpos(f.ps + 45, -1, h(f.ps + 45) + 1);
+    want = wpos(f.ps - 18, 30, Math.max(h(f.ps), h(f.ps + 60)) + 20);
   }
   const k = Math.min(1, dt * (inCrash ? 2.2 : 3));
   if (!RP.cam) { RP.cam = want.clone(); RP.tgt = target.clone(); } else { RP.cam.lerp(want, k); RP.tgt.lerp(target, k); }
   camera.position.copy(RP.cam); camera.lookAt(RP.tgt);
-  tag('p', '나', 'me', f.px, h(f.ps) + 2.2, -f.ps);
+  { const q = wpos(f.ps, f.px, h(f.ps) + 2.2, _cv); tag('p', '나', 'me', q.x, q.y, q.z); }
   // 리플레이 이름표: '나'만 표시 (다른 차량·보행자는 표시하지 않음)
   (SC.replay === 'plan' ? drawPlan : drawProfile)(f);
 }
@@ -3571,7 +3658,7 @@ function makeThumb(sc) {
   newRound();
   drawWorld({ t: -1, ps, px: sc.thumb.x, ts: sc.thumb.lead, cs: G.cars.map(() => NaN) }, false);
   renderer.setSize(480, 270, false); camera.aspect = 480 / 270; camera.fov = 50; camera.updateProjectionMatrix();
-  camera.position.set(sc.thumb.x + SEAT, h(ps) + EYE, -ps); camera.rotation.set(Math.atan(slope(ps + 5)) - 0.02, 0, 0);
+  wpos(ps, sc.thumb.x + SEAT, h(ps) + EYE, camera.position); camera.rotation.set(Math.atan(slope(ps + 5)) - 0.02, -wyaw(ps), 0);
   renderer.render(scene, camera);
   try { thumbs[sc.id] = canvas.toDataURL('image/jpeg', 0.75); } catch (e) {}
   camera.fov = 68; resize();
@@ -3661,8 +3748,8 @@ function loop(now) {
     const ps = SC.player.s;
     drawWorld({ t: -1, ps, px: SC.player.x, ts: SC.truck.s, cs: G.cars.map(() => NaN) }, true);
     // 길가 나무에 가리지 않는 위치
-    camera.position.set(-5.5 + Math.sin(idleT * 0.12) * 1.5, h(ps - 22) + 5.5, -(ps - 22));
-    camera.lookAt(1, h(ps + 60) + 4, -(ps + 140));
+    wpos(ps - 22, -5.5 + Math.sin(idleT * 0.12) * 1.5, h(ps - 22) + 5.5, camera.position);
+    camera.lookAt(wpos(ps + 140, 1, h(ps + 60) + 4, _cv));
   }
   // 터널 출구 눈부심 (사용자 결정: 노출 과다 + 흰 막, 1.2초): 나서는 순간 0.08초 만에 노출이 8배로 확 올라
   // 밝은 하늘·도로는 하얗게 날아가고 어두운 차체·후미등은 어렴풋이 남는다. 1초에 걸쳐 원래 노출로 (?look=old는 예전 흰 판)
