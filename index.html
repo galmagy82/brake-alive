@@ -2670,13 +2670,17 @@ function step(dt) {
   // 교차로 우회전(09): 정해진 경로(가로 도로 2차로 → 타원 회전 → 큰길 2차로)를 자동으로 따라간다. 브레이크만 된다
   // 도는 곳이 가까워지면 vturn까지 저절로 줄인다 (남은 거리에 맞춘 감속, 최대 2.5m/s²)
   if (onPath) {
-    const P = p.path, arcEnd = P.approach + pathArcLen(P);
-    const toArc = P.approach - p.u, cap = toArc > 0 ? Math.min(P.vcap, Math.sqrt(P.vturn * P.vturn + 2 * 2.5 * toArc)) : P.vturn;
-    if (keys.down) p.v -= 8 * dt; else p.v += 3 * dt;
+    const P = p.path, arcL = pathArcLen(P), arcEnd = P.approach + arcL;
+    // 코너를 2/3쯤 돌았으면 가속을 시작한다 (급가속 시간도 이때부터)
+    const exiting = p.u >= P.approach + arcL * 2 / 3;
+    if (exiting && P.doneT === undefined) P.doneT = t;
+    const toArc = P.approach - p.u, cap = exiting ? V_MAX : toArc > 0 ? Math.min(P.vcap, Math.sqrt(P.vturn * P.vturn + 2 * 2.5 * toArc)) : P.vturn;
+    if (keys.down) p.v -= 8 * dt;
+    else p.v += exiting ? 4.2 * (1 - p.v / (V_MAX * 1.08)) * (P.boost || 1) * dt : 3 * dt;
     p.v = clamp(p.v, 0, cap); p.latV = 0;
     const prevU = p.u; p.u += p.v * dt;
     if (prevU < P.approach && p.u >= P.approach) ev('turnMe');
-    if (p.u >= arcEnd) { P.done = true; P.doneT = t; p.u = arcEnd; }
+    if (p.u >= arcEnd) { P.done = true; p.u = arcEnd; }
     const q = pathPose(P, p.u); p.x = q.x; p.yaw = q.yaw; p.s = q.s;
   }
   // 가속 페달은 항상 밟혀 있다 (빠를수록 덜 붙는다). 브레이크를 밟는 동안만 느려진다.
