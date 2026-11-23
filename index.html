@@ -668,9 +668,9 @@ const SCENARIOS = [
       zoneStart: -1e4, zoneEnd: 1e4, goal: 262.25, intersection: 100, crossCars: false, leftArrow: true,
       // 유턴 구간: 맞은편 정지선에서 25~45m 뒤 (사용자 조정). 이 구간의 중앙선은 노란 실선 대신 흰 점선
       uturnZone: { s0: 135.4, s1: 155.4 } },
-    // path: 가로 도로 2차로(교차로 100+5.25)에서 40m 다가와, 플레이어가 방향키(핸들)로 직접 우회전한다 (끝까지 꺾으면 반지름 4.5m).
-    // rx·rs·toX는 내비게이션에 보여 줄 권장 경로 (크게 돌아 1차로). 다가올 때 시속 20km, 도는 동안 시속 18km 이하. 다 돌면 4초 동안 1.6배로 가속
-    player: { s: 105.25, v: 5.56, x: 48.75, path: { kind: 'right', ix: 100, approach: 40, rx: 7, rs: 5, toX: 1.75, vcap: 5.56, vturn: 5.0, Rmin: 4.5, boost: 1.6, boostT: 4 } },
+    // path: 가로 도로 2차로(교차로 100+5.25)를 따라 40m 다가와, 가로 4.5m × 세로 3.5m 타원으로 자동 우회전해 큰길 2차로(x 5.25)로 (사용자 결정)
+    // 인도 모서리가 직각이라 더 크게 돌 수 없다 (모서리에서 1.1m 떨어져 지난다). 다가올 때 시속 20km, 도는 동안 시속 14km 이하. 다 돌면 4초 동안 1.6배로 가속
+    player: { s: 105.25, v: 5.56, x: 49.75, path: { kind: 'right', ix: 100, approach: 40, rx: 4.5, rs: 3.5, toX: 5.25, vcap: 5.56, vturn: 4.0, boost: 1.6, boostT: 4 } },
     signalArrow: { at: 4.0 },   // 맞은편 좌회전 화살표가 켜지는 시각
     // 맞은편 2차로에서 빨간불에 서 있는 화물차
     truck: { type: 'truck', label: '화물차', parked: true, dir: -1, s: 115, x: -5.25, up: 0, flat: 0, down: 0, mass: 6, hl: 5, hw: 1.25, height: 3.5 },
@@ -686,7 +686,7 @@ const SCENARIOS = [
       '코너를 빠져나오자마자 속도를 올리지 말고, 유턴 차가 다 돌 때까지 기다린 뒤 가속합니다.',
     ],
     thumb: { s: 70, x: 5.25, lead: 115 },
-    hint: '교차로에서 오른쪽 방향키로 우회전하세요. 누르고 있는 만큼 핸들이 꺾이고, 떼면 풀립니다.',
+    hint: '교차로에서는 자동으로 우회전합니다. 브레이크로 속도를 조절하세요.',
     replay: 'plan', sightLines: false,
     headOnBody: '맞은편 차로에서 신호를 기다리던 차와 부딪혔습니다.',
     truckBody: '맞은편 차로에서 신호를 기다리던 화물차와 부딪혔습니다.',
@@ -2667,22 +2667,17 @@ function step(dt) {
   const onPath = !!(p.path && !p.path.done);
   G.prev = { s: p.s, x: p.x, ts: tr.s, bs: G.bait ? G.bait.s : undefined, cs: G.cars.map(c => c.active ? c.s : NaN), cx: G.cars.map(c => c.x) };   // 화면 보간용 직전 상태
   G.t += dt; const t = G.t;
-  // 교차로 우회전(09): 큰길에 들어설 때까지 방향키가 핸들이다. 누르는 동안 핸들이 서서히 꺾이고(약 0.8초에 끝까지), 떼면 서서히 풀린다.
-  // 꺾인 만큼 돈다 (끝까지 꺾으면 반지름 Rmin). 속도: 교차로까지 시속 20km, 모서리에 가까워지거나 돌기 시작하면 시속 18km 이하
+  // 교차로 우회전(09): 정해진 경로(가로 도로 2차로 → 타원 회전 → 큰길 2차로)를 자동으로 따라간다. 브레이크만 된다
+  // 도는 곳이 가까워지면 vturn까지 저절로 줄인다 (남은 거리에 맞춘 감속, 최대 2.5m/s²)
   if (onPath) {
-    const P = p.path, HW = R.half;
-    const toCorner = p.x - (HW + 2), turning = p.yaw < Math.PI / 2 - 0.1 || toCorner <= 0;
-    const cap = turning ? P.vturn : Math.min(P.vcap, Math.sqrt(P.vturn * P.vturn + 2 * 2.5 * Math.max(0, toCorner)));
+    const P = p.path, arcEnd = P.approach + pathArcLen(P);
+    const toArc = P.approach - p.u, cap = toArc > 0 ? Math.min(P.vcap, Math.sqrt(P.vturn * P.vturn + 2 * 2.5 * toArc)) : P.vturn;
     if (keys.down) p.v -= 8 * dt; else p.v += 3 * dt;
     p.v = clamp(p.v, 0, cap); p.latV = 0;
-    const want = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
-    if (want) P.steer = clamp((P.steer || 0) + want * 1.25 * dt, -1, 1);
-    else P.steer = (P.steer || 0) - Math.sign(P.steer || 0) * Math.min(Math.abs(P.steer || 0), 1.6 * dt);
-    if (!P.steerT && P.steer > 0.1) { P.steerT = t; ev('turnMe'); }
-    p.yaw = clamp(p.yaw - P.steer / P.Rmin * p.v * dt, -0.7, Math.PI / 2 + 0.7);   // 오른쪽으로 꺾으면 yaw가 줄어든다 (π/2 = 가로 도로 방향, 0 = 큰길 방향)
-    p.x -= Math.sin(p.yaw) * p.v * dt; p.s += Math.cos(p.yaw) * p.v * dt;
-    // 큰길 방향으로 거의 똑바로 서고(3도 이내) 큰길 차로 안이면 평소 주행으로
-    if (Math.abs(p.yaw) < 0.05 && p.x > X_MIN && p.x < X_MAX && p.s > P.ix + 2) { P.done = true; P.doneT = t; p.yaw = 0; p.latV = 0; }
+    const prevU = p.u; p.u += p.v * dt;
+    if (prevU < P.approach && p.u >= P.approach) ev('turnMe');
+    if (p.u >= arcEnd) { P.done = true; P.doneT = t; p.u = arcEnd; }
+    const q = pathPose(P, p.u); p.x = q.x; p.yaw = q.yaw; p.s = q.s;
   }
   // 가속 페달은 항상 밟혀 있다 (빠를수록 덜 붙는다). 브레이크를 밟는 동안만 느려진다.
   if (onPath) {} else if (keys.down) p.v -= 8 * dt;
@@ -2703,8 +2698,7 @@ function step(dt) {
   }
   // 도로 끝(도심은 연석, 국도는 갓길)에 바퀴가 걸치면(끝에서 0.3m 안) 덜덜거리며 끌리듯 느려진다
   const inIx = R.intersection && Math.abs(p.s - R.intersection) < R.half + 0.2;   // 교차로 안은 연석이 끊겨 있다
-  G.curb = onPath ? (Math.abs(p.x) > R.half + 0.2 && Math.abs(p.s - R.intersection) > R.half + 0.2 && Math.abs(p.s - R.intersection) < R.half + 3.2)   // 교차로 모서리 인도를 밟음
-    : !inIx && (p.x > X_MAX - 0.3 || p.x < X_MIN + 0.3);
+  G.curb = !onPath && !inIx && (p.x > X_MAX - 0.3 || p.x < X_MIN + 0.3);
   if (G.curb) p.v = Math.max(0, p.v - 3 * dt);
   const prevS = onPath ? p.s : p.s; if (!onPath) p.s += p.v * dt;
   if (SC.truck.script) {   // 정해진 움직임: 녹색불에 출발했다가 정해진 곳에서 급정거
@@ -2905,11 +2899,9 @@ function drawNav(ps, px) {
   // 경로: 내 위치부터 목적지까지 파랗게 (우회전 중이면 남은 회전 경로를 따라 그린 뒤 큰길로)
   const yg = Y(R.goal);
   g.strokeStyle = 'rgba(70,150,255,.95)'; g.lineWidth = 4; g.lineCap = 'round'; g.lineJoin = 'round'; g.beginPath();
-  if (turning) {   // 권장 경로: 아직 다가오는 중이면 그 자리부터, 돌기 시작했으면 내 자리에서 큰길 차로로
-    const end = P.approach + pathArcLen(P), x0 = P.toX + P.rx + P.approach, u0 = yaw > Math.PI / 2 - 0.05 ? Math.max(0, x0 - px) : null;
-    g.moveTo(mx, Y(ps));
-    if (u0 !== null) for (let u = u0; ; u = Math.min(end, u + 1)) { const q = pathPose(P, u); g.lineTo(X(q.x), Y(q.s)); if (u >= end) break; }
-    else g.lineTo(X(P.toX), Y(Math.max(ps, R.intersection + R.half)));
+  if (turning) {   // 남은 회전 경로를 따라 그린 뒤 큰길로
+    const end = P.approach + pathArcLen(P);
+    for (let u = G.p.u; ; u = Math.min(end, u + 1)) { const q = pathPose(P, u); u === G.p.u ? g.moveTo(X(q.x), Y(q.s)) : g.lineTo(X(q.x), Y(q.s)); if (u >= end) break; }
     g.lineTo(X(P.toX), yg); g.stroke();
   } else {
     const lx = R.type === 'alley' ? cx : cx + RW / 4, y1 = myY + 10, top = Math.max(0, yg);   // 내 방향 차로 가운데에 4px 선
@@ -2934,7 +2926,7 @@ function drawNav(ps, px) {
   g.fillStyle = '#fff'; g.fill(); g.lineWidth = 1.5; g.strokeStyle = '#1f5fc4'; g.stroke();
   // 안내 문구: 우회전 경로 중이면 교차로까지 + 우회전, 앞에 교차로가 있으면 교차로까지, 아니면 목적지까지
   const toI = ix ? ix - HW - ps : -1, turnEl = document.querySelector('.nav-turn');
-  if (turning) { turnEl.textContent = '↱'; $('navDist').textContent = Math.max(0, Math.round(px - R.half - 2)) + 'm'; $('navText').textContent = '교차로에서 우회전'; return; }
+  if (turning) { turnEl.textContent = '↱'; $('navDist').textContent = Math.max(0, Math.round(P.approach - G.p.u)) + 'm'; $('navText').textContent = '교차로에서 우회전'; return; }
   if (turnEl.textContent !== '↑') turnEl.textContent = '↑';
   if (toI > 0) { $('navDist').textContent = Math.round(toI) + 'm'; $('navText').textContent = '교차로에서 직진'; }
   else { $('navDist').textContent = Math.max(0, Math.round(R.goal - ps)) + 'm'; $('navText').textContent = '목적지'; }
@@ -3183,7 +3175,7 @@ function captionFor(e) {
   switch (e.type) {
     case 'sign': return '앞지르기 금지 표지판입니다. 여기부터 중앙선이 두 줄 실선으로 바뀝니다.';
     case 'uturnStart': return '유턴 구간에서 맞은편 차가 유턴을 시작합니다.';
-    case 'turnMe': return '핸들을 꺾어 우회전을 시작합니다.';
+    case 'turnMe': return '내 차가 우회전을 시작합니다.';
     case 'tunnelEnter': return e.gap != null ? `터널에 들어서는 순간입니다. 어두워 보이지 않았지만, 앞차는 ${Math.max(0, e.gap).toFixed(0)}m 앞에 있었습니다. (시속 ${Math.round(e.v * 3.6)}km)` : '터널에 들어서는 순간입니다.';
     case 'tunnelExit': return e.gap != null ? `터널을 나서는 순간입니다. 눈이 부셔 보이지 않았지만, 앞차는 ${Math.max(0, e.gap).toFixed(0)}m 앞에 있었습니다. (시속 ${Math.round(e.v * 3.6)}km)` : '터널을 나서는 순간입니다.';
     case 'overtake':
