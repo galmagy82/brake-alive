@@ -800,24 +800,27 @@ const SCENARIOS = [
   {
     id: '12', title: '커브길 추월', ready: true,
     info: '국도 왕복 2차로 · 오후 6시',
-    mission: { time: 108 },
+    mission: { time: 96 },
     // 짐 실은 소형 트럭 세 대가 시속 30km로 간다. 따라만 가면 시간 안에 못 들어간다 (추월해야 한다).
     // 1) 직선(점선): 트럭 1 추월 안전  2) 완만한 커브(시야 트임, 점선): 맞은편 차 한 대가 지나간 뒤 트럭 2 추월 안전
     // 3) 산에 가린 커브 세 개가 이어지는 구간(510~1000m, 두 줄 실선, 앞지르기 금지): 트럭 3. 맞은편 차가 약 3초 간격으로 줄지어 온다 → 여기서 추월하면 정면충돌
-    // 4) 커브 뒤 직선(1000~1340m, 점선): 맞은편 차가 다 지나가 비어 있다. 여기서 추월하면 시간 안에 GOAL
-    road: { type: 'hill2', half: 3.5, flat: 6, xMin: -2.7, xMax: 2.7, hillStart: 1e6, hillEnd: 1e6 + 1, crest: 1e6, H: 0, zoneStart: 510, zoneEnd: 1000, goal: 1340,
+    // 4) 커브 뒤 직선(1000~1170m, 점선): 맞은편 차가 다 지나가 비어 있다. 여기서 추월하면 시간 안에 GOAL
+    road: { type: 'hill2', half: 3.5, flat: 6, xMin: -2.7, xMax: 2.7, hillStart: 1e6, hillEnd: 1e6 + 1, crest: 1e6, H: 0, zoneStart: 510, zoneEnd: 1000, goal: 1170,
       curves: [{ s0: 250, len: 150, r: 400, open: true }, { s0: 510, len: 150, r: -170 }, { s0: 680, len: 150, r: 170 }, { s0: 850, len: 150, r: -170 }],   // open: 산 없이 트인 커브
       cutHill: 14 },
-    player: { s: 0, v: 19.4, x: 1.75 },   // 시속 70km로 출발
+    player: { s: 0, v: 19.4, x: 1.75, vmax: 33.33 },   // 시속 70km로 출발, 최고속도 시속 120km
     // 큰 화물차는 쓰지 않는다 (멀리 길 밖에 둔다)
     truck: { type: 'truck', label: '화물차', parked: true, s: 5000, x: 40, up: 0, flat: 0, down: 0, mass: 6, hl: 5, hw: 1.25, height: 3.5 },
     oncoming: [
       // 짐 실은 소형 트럭 세 대 (시속 30km)
-      ...[[60, '트럭 1'], [171, '트럭 2'], [308, '트럭 3']].map(([s, label]) => ({ label, fwd: true, jam: true, s, v: 8.33, x: 1.75, model: 'ptruck', color: 0xe8e6e0 })),
+      // 트럭 4: 트럭 3보다 60m 앞. 셋째 커브(680~830m)를 트럭 3과 함께 지난다 (트럭 3만 추월해서는 빠져나갈 수 없다)
+      ...[[60, '트럭 1'], [171, '트럭 2'], [308, '트럭 3'], [368, '트럭 4']].map(([s, label]) => ({ label, fwd: true, jam: true, s, v: 8.33, x: 1.75, model: 'ptruck', color: 0xe8e6e0 })),
       // 완만한 커브의 맞은편 차 한 대: 트럭 2에 다가갈 즈음(약 14초) 커브를 지나간다
       { label: '맞은편 차', s: 588, v: 22, x: -1.75, color: 0x3c4a3e },
       // 가린 커브 구간의 맞은편 차들: 트럭 3(시속 30km)이 있는 곳을 약 27~81초에 3초 간격으로 지나간다 (출발 위치 = 308 + 30.33 × 만나는 시각)
       ...Array.from({ length: 19 }, (_, k) => ({ label: '맞은편 차', s: Math.round(308 + 30.33 * (27 + 3 * k)), v: 22, x: -1.75, color: [0x7a2a2a, 0xb9b9b4, 0xd0b04a, 0x2f4f6f, 0x6d2a2a, 0x3c4a3e][k % 6] })),
+      // 셋째 커브 부근(트럭 3이 680~830m를 지나는 약 45~63초)에는 사이사이 한 대씩 더: 1.5초 간격
+      ...Array.from({ length: 6 }, (_, k) => ({ label: '맞은편 차', s: Math.round(308 + 30.33 * (46.5 + 3 * k)), v: 22, x: -1.75, color: [0x3c4a3e, 0xd0b04a, 0x7a2a2a, 0xb9b9b4, 0x2f4f6f, 0x6d2a2a][k] })),
     ],
     lessons: [
       '앞서 추월이 괜찮았다고 다음 커브도 괜찮은 것은 아닙니다.',
@@ -2977,7 +2980,7 @@ function step(dt) {
   // 가속 페달은 항상 밟혀 있다 (빠를수록 덜 붙는다). 브레이크를 밟는 동안만 느려진다.
   if (onPath) {} else if (keys.down) p.v -= 8 * dt;
   else p.v += 4.2 * (1 - p.v / (V_MAX * 1.08)) * dt * (p.path && p.path.boost && t - p.path.doneT < p.path.boostT ? p.path.boost : 1);   // 09: 코너를 빠져나오며 급가속
-  if (!onPath) p.v = clamp(p.v, 0, V_MAX);
+  if (!onPath) p.v = clamp(p.v, 0, SC.player.vmax || V_MAX);   // vmax: 시나리오별 최고속도 (m/s)
   const held = SC.signal && t < SC.signal.greenAt;   // 빨간불: 자동으로 브레이크가 걸려 서 있다
   if (held) p.v = 0;
   if (SC.signal && t - dt < SC.signal.greenAt && t >= SC.signal.greenAt) ev('green');
