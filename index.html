@@ -668,8 +668,9 @@ const SCENARIOS = [
       zoneStart: -1e4, zoneEnd: 1e4, goal: 262.25, intersection: 100, crossCars: false, leftArrow: true,
       // 유턴 구간: 맞은편 정지선에서 30~50m 뒤. 이 구간의 중앙선은 노란 실선 대신 흰 점선
       uturnZone: { s0: 140.4, s1: 160.4 } },
-    // path: 가로 도로 2차로(교차로 100+5.25)를 따라 40m 다가와 반지름 7m로 우회전 → 큰길 2차로(x 5.25). 도는 동안은 시속 20km 이하
-    player: { s: 105.25, v: 5.56, x: 52.25, path: { kind: 'right', ix: 100, approach: 40, R: 7, vcap: 5.56 } },
+    // path: 가로 도로 2차로(교차로 100+5.25)를 따라 40m 다가와 반지름 3.5m로 우회전 → 큰길 2차로(x 5.25)
+    // (인도 모서리가 직각이라 작게 돌아야 인도를 밟지 않는다). 다가올 때 시속 20km, 도는 동안 시속 12km 이하
+    player: { s: 105.25, v: 5.56, x: 48.75, path: { kind: 'right', ix: 100, approach: 40, R: 3.5, vcap: 5.56, vturn: 3.3 } },
     signalArrow: { at: 4.0 },   // 맞은편 좌회전 화살표가 켜지는 시각
     // 맞은편 2차로에서 빨간불에 서 있는 화물차
     truck: { type: 'truck', label: '화물차', parked: true, dir: -1, s: 115, x: -5.25, up: 0, flat: 0, down: 0, mass: 6, hl: 5, hw: 1.25, height: 3.5 },
@@ -2626,7 +2627,7 @@ function followMove(c, dt) {
 }
 // 내 차의 정해진 경로 (09 우회전): u = 경로를 따라 달린 거리 → 위치(s, x)와 방향(yaw: 0 = +s, +π/2 = -x 쪽)
 function pathPose(P, u) {
-  const sx = P.ix + 5.25, x0 = 7 + 5.25 + P.approach, arcL = Math.PI * P.R / 2;
+  const sx = P.ix + 5.25, x0 = 5.25 + P.R + P.approach, arcL = Math.PI * P.R / 2;
   if (u <= P.approach) return { s: sx, x: x0 - u, yaw: Math.PI / 2 };
   if (u <= P.approach + arcL) { const th = (u - P.approach) / P.R, cx = 5.25 + P.R, cs = sx + P.R;   // 원 중심 (모서리 쪽)
     return { s: cs - P.R * Math.cos(th), x: cx - P.R * Math.sin(th), yaw: Math.PI / 2 - th }; }
@@ -2640,8 +2641,10 @@ function step(dt) {
   // 정해진 경로(우회전) 중: 시속 20km까지만 저절로 가속, 브레이크만 된다. 핸들은 막힌다
   if (onPath) {
     const P = p.path, arcEnd = P.approach + Math.PI * P.R / 2;
+    // 도는 곳이 가까워지면 vturn까지 저절로 줄인다 (남은 거리에 맞춘 감속, 최대 2.5m/s²)
+    const toArc = P.approach - p.u, cap = toArc > 0 ? Math.min(P.vcap, Math.sqrt(P.vturn * P.vturn + 2 * 2.5 * toArc)) : P.vturn;
     if (keys.down) p.v -= 8 * dt; else p.v += 3 * dt;
-    p.v = clamp(p.v, 0, P.vcap); p.latV = 0;
+    p.v = clamp(p.v, 0, cap); p.latV = 0;
     const prevU = p.u; p.u += p.v * dt;
     if (prevU < P.approach && p.u >= P.approach) ev('turnMe');
     if (p.u >= arcEnd) { P.done = true; p.u = arcEnd; }
