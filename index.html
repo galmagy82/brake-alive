@@ -668,9 +668,9 @@ const SCENARIOS = [
       zoneStart: -1e4, zoneEnd: 1e4, goal: 262.25, intersection: 100, crossCars: false, leftArrow: true,
       // 유턴 구간: 맞은편 정지선에서 10~30m 뒤 (사용자가 20m 앞당김). 이 구간의 중앙선은 노란 실선 대신 흰 점선
       uturnZone: { s0: 120.4, s1: 140.4 } },
-    // path: 가로 도로 2차로(교차로 100+5.25)를 따라 40m 다가와 반지름 3.5m로 우회전 → 큰길 2차로(x 5.25)
-    // (인도 모서리가 직각이라 작게 돌아야 인도를 밟지 않는다). 다가올 때 시속 20km, 도는 동안 시속 12km 이하
-    player: { s: 105.25, v: 5.56, x: 48.75, path: { kind: 'right', ix: 100, approach: 40, R: 3.5, vcap: 5.56, vturn: 3.3 } },
+    // path: 가로 도로 2차로(교차로 100+5.25)를 따라 40m 다가와, 가로 7m × 세로 5m 타원으로 크게 돌아 큰길 1차로(x 1.75)로 들어간다
+    // (인도 모서리에서 1.8m 떨어져 지난다). 다가올 때 시속 20km, 도는 동안 시속 18km 이하. 다 돌면 4초 동안 1.6배로 가속
+    player: { s: 105.25, v: 5.56, x: 48.75, path: { kind: 'right', ix: 100, approach: 40, rx: 7, rs: 5, toX: 1.75, vcap: 5.56, vturn: 5.0, boost: 1.6, boostT: 4 } },
     signalArrow: { at: 4.0 },   // 맞은편 좌회전 화살표가 켜지는 시각
     // 맞은편 2차로에서 빨간불에 서 있는 화물차
     truck: { type: 'truck', label: '화물차', parked: true, dir: -1, s: 115, x: -5.25, up: 0, flat: 0, down: 0, mass: 6, hl: 5, hw: 1.25, height: 3.5 },
@@ -681,9 +681,9 @@ const SCENARIOS = [
       { label: '맞은편 차', s: 118, x: -1.75, v: 0 }, { label: '맞은편 차', s: 125, x: -1.75, v: 0 },
     ],
     lessons: [
-      '우회전해 들어가는 차로에 맞은편 유턴 차가 함께 들어올 수 있습니다.',
+      '우회전해 들어가는 차로에 맞은편 유턴 차가 함께 들어올 수 있습니다. 크게 돌아 안쪽 차로로 들어가면 더 먼저 마주칩니다.',
       '중앙선이 흰 점선인 곳은 유턴 구간입니다. 맞은편 차가 크게 돌아 바깥 차로까지 넘어올 수 있습니다.',
-      '우회전은 천천히, 유턴 차가 다 돌 때까지 기다린 뒤 들어갑니다.',
+      '코너를 빠져나오자마자 속도를 올리지 말고, 유턴 차가 다 돌 때까지 기다린 뒤 가속합니다.',
     ],
     thumb: { s: 70, x: 5.25, lead: 115 },
     hint: '교차로에서는 자동으로 우회전합니다. 브레이크로 속도를 조절하세요.',
@@ -2626,12 +2626,23 @@ function followMove(c, dt) {
   c.v += clamp(want - c.v, -7 * dt, 2.5 * dt);
 }
 // 내 차의 정해진 경로 (09 우회전): u = 경로를 따라 달린 거리 → 위치(s, x)와 방향(yaw: 0 = +s, +π/2 = -x 쪽)
+// 회전은 타원 1/4 (가로 rx, 세로 rs): 가로 도로 차로(s = 교차로 + 5.25)에서 큰길 차로(x = toX)로. 같은 거리마다 같은 만큼 가도록 길이 표를 만든다
+function pathArc(P) {
+  if (P.tab) return P.tab;
+  const n = 64, tab = [0]; let px = P.rx, ps = 0;
+  for (let i = 1; i <= n; i++) { const th = i / n * Math.PI / 2, x = P.rx * Math.cos(th), sy = P.rs * Math.sin(th); tab.push(tab[i - 1] + Math.hypot(x - px, sy - ps)); px = x; ps = sy; }
+  return (P.tab = tab);
+}
+const pathArcLen = P => { const t = pathArc(P); return t[t.length - 1]; };
 function pathPose(P, u) {
-  const sx = P.ix + 5.25, x0 = 5.25 + P.R + P.approach, arcL = Math.PI * P.R / 2;
+  const sx = P.ix + 5.25, cx = P.toX + P.rx, cs = sx + P.rs, x0 = cx + P.approach, tab = pathArc(P), L = tab[tab.length - 1];
   if (u <= P.approach) return { s: sx, x: x0 - u, yaw: Math.PI / 2 };
-  if (u <= P.approach + arcL) { const th = (u - P.approach) / P.R, cx = 5.25 + P.R, cs = sx + P.R;   // 원 중심 (모서리 쪽)
-    return { s: cs - P.R * Math.cos(th), x: cx - P.R * Math.sin(th), yaw: Math.PI / 2 - th }; }
-  return { s: sx + P.R + (u - P.approach - arcL), x: 5.25, yaw: 0 };
+  if (u <= P.approach + L) {
+    const d = u - P.approach; let i = 1; while (i < tab.length - 1 && tab[i] < d) i++;
+    const th = ((i - 1) + (d - tab[i - 1]) / Math.max(1e-6, tab[i] - tab[i - 1])) / (tab.length - 1) * Math.PI / 2;
+    return { s: cs - P.rs * Math.cos(th), x: cx - P.rx * Math.sin(th), yaw: Math.atan2(P.rx * Math.cos(th), P.rs * Math.sin(th)) };
+  }
+  return { s: cs + (u - P.approach - L), x: P.toX, yaw: 0 };
 }
 function step(dt) {
   const p = G.p, tr = G.truck, hz = G.hazard;
@@ -2640,19 +2651,19 @@ function step(dt) {
   G.t += dt; const t = G.t;
   // 정해진 경로(우회전) 중: 시속 20km까지만 저절로 가속, 브레이크만 된다. 핸들은 막힌다
   if (onPath) {
-    const P = p.path, arcEnd = P.approach + Math.PI * P.R / 2;
+    const P = p.path, arcEnd = P.approach + pathArcLen(P);
     // 도는 곳이 가까워지면 vturn까지 저절로 줄인다 (남은 거리에 맞춘 감속, 최대 2.5m/s²)
     const toArc = P.approach - p.u, cap = toArc > 0 ? Math.min(P.vcap, Math.sqrt(P.vturn * P.vturn + 2 * 2.5 * toArc)) : P.vturn;
     if (keys.down) p.v -= 8 * dt; else p.v += 3 * dt;
     p.v = clamp(p.v, 0, cap); p.latV = 0;
     const prevU = p.u; p.u += p.v * dt;
     if (prevU < P.approach && p.u >= P.approach) ev('turnMe');
-    if (p.u >= arcEnd) { P.done = true; p.u = arcEnd; }
+    if (p.u >= arcEnd) { P.done = true; P.doneT = t; p.u = arcEnd; }
     const q = pathPose(P, p.u); p.x = q.x; p.yaw = q.yaw; p.s = q.s;
   }
   // 가속 페달은 항상 밟혀 있다 (빠를수록 덜 붙는다). 브레이크를 밟는 동안만 느려진다.
   if (onPath) {} else if (keys.down) p.v -= 8 * dt;
-  else p.v += 4.2 * (1 - p.v / (V_MAX * 1.08)) * dt;
+  else p.v += 4.2 * (1 - p.v / (V_MAX * 1.08)) * dt * (p.path && p.path.boost && t - p.path.doneT < p.path.boostT ? p.path.boost : 1);   // 09: 코너를 빠져나오며 급가속
   if (!onPath) p.v = clamp(p.v, 0, V_MAX);
   const held = SC.signal && t < SC.signal.greenAt;   // 빨간불: 자동으로 브레이크가 걸려 서 있다
   if (held) p.v = 0;
@@ -2853,7 +2864,7 @@ function drawNav(ps, px) {
   g.fillStyle = '#18212b'; g.fillRect(0, 0, W, H);
   const P = G.p && G.p.path, turning = !!(P && !P.done), yaw = turning ? (G.p.yaw || 0) : 0;
   // 지도 돌리기: 내 위치(mx)를 축으로 yaw만큼. 축의 화면 위치는 다가올 때 가운데 → 다 돌면 평소 자리로 서서히
-  const mx = X(px), pivot = turning ? cx + (X(5.25) - cx) * (1 - yaw / (Math.PI / 2)) : mx;
+  const mx = X(px), pivot = turning ? cx + (X(P.toX ?? 5.25) - cx) * (1 - yaw / (Math.PI / 2)) : mx;
   g.save(); g.translate(pivot, myY); g.rotate(yaw); g.translate(-mx, -myY);
   const E0 = -2 * Math.max(W, H), E1 = 3 * Math.max(W, H), EW = E1 - E0;   // 돌려도 빈 곳이 없게 넓게
   g.fillStyle = '#1e2934';   // 길가 블록
@@ -2871,9 +2882,9 @@ function drawNav(ps, px) {
   const yg = Y(R.goal);
   g.strokeStyle = 'rgba(70,150,255,.95)'; g.lineWidth = 4; g.lineCap = 'round'; g.lineJoin = 'round'; g.beginPath();
   if (turning) {
-    const end = P.approach + Math.PI * P.R / 2;
+    const end = P.approach + pathArcLen(P);
     for (let u = G.p.u; ; u = Math.min(end, u + 1)) { const q = pathPose(P, u); u === G.p.u ? g.moveTo(X(q.x), Y(q.s)) : g.lineTo(X(q.x), Y(q.s)); if (u >= end) break; }
-    g.lineTo(X(5.25), yg); g.stroke();
+    g.lineTo(X(P.toX ?? 5.25), yg); g.stroke();
   } else {
     const lx = R.type === 'alley' ? cx : cx + RW / 4, y1 = myY + 10, top = Math.max(0, yg);   // 내 방향 차로 가운데에 4px 선
     if (y1 > top) { g.moveTo(lx, top); g.lineTo(lx, y1); g.stroke(); }
