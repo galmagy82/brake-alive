@@ -666,8 +666,8 @@ const SCENARIOS = [
     // 내 쪽 신호는 빨간불(우회전은 가능), 큰길 맞은편은 빨간불 + 좌회전 화살표 → 맞은편 1차로의 차가 유턴해 내 쪽 2차로까지 넘어온다
     road: { type: 'city4', half: 7.0, flat: 10.5, xMin: -6.3, xMax: 6.3, hillStart: 1e6, hillEnd: 1e6 + 1, crest: 1e6, H: 0,
       zoneStart: -1e4, zoneEnd: 1e4, goal: 262.25, intersection: 100, crossCars: false, leftArrow: true,
-      // 유턴 구간: 맞은편 정지선에서 30~50m 뒤. 이 구간의 중앙선은 노란 실선 대신 흰 점선
-      uturnZone: { s0: 140.4, s1: 160.4 } },
+      // 유턴 구간: 맞은편 정지선에서 10~30m 뒤 (사용자가 20m 앞당김). 이 구간의 중앙선은 노란 실선 대신 흰 점선
+      uturnZone: { s0: 120.4, s1: 140.4 } },
     // path: 가로 도로 2차로(교차로 100+5.25)를 따라 40m 다가와 반지름 3.5m로 우회전 → 큰길 2차로(x 5.25)
     // (인도 모서리가 직각이라 작게 돌아야 인도를 밟지 않는다). 다가올 때 시속 20km, 도는 동안 시속 12km 이하
     player: { s: 105.25, v: 5.56, x: 48.75, path: { kind: 'right', ix: 100, approach: 40, R: 3.5, vcap: 5.56, vturn: 3.3 } },
@@ -675,8 +675,8 @@ const SCENARIOS = [
     // 맞은편 2차로에서 빨간불에 서 있는 화물차
     truck: { type: 'truck', label: '화물차', parked: true, dir: -1, s: 115, x: -5.25, up: 0, flat: 0, down: 0, mass: 6, hl: 5, hw: 1.25, height: 3.5 },
     oncoming: [
-      // 유턴 차: 맞은편 1차로를 시속 40km로 달려오다가 유턴 구간(152m)에서 시속 16km로 줄여 반지름 3.5m로 돌아 내 쪽 2차로로 들어온다
-      { label: '유턴 차', s: 262, x: -1.75, v: 11, color: 0x7a2a2a, uturn: { S0: 152, R: 3.5, vt: 4.5, dec: 2.5, v2: 12, a2: 2.0 } },
+      // 유턴 차: 맞은편 1차로를 시속 40km로 달려오다가 유턴 구간(132m)에서 시속 16km로 줄여 반지름 3.5m로 돌아 내 쪽 2차로로 들어온다
+      { label: '유턴 차', s: 242, x: -1.75, v: 11, color: 0x7a2a2a, uturn: { S0: 132, R: 3.5, vt: 4.5, dec: 2.5, v2: 12, a2: 2.0 } },
       // 그 뒤에서 신호를 기다리는 차들 (서 있다)
       { label: '맞은편 차', s: 118, x: -1.75, v: 0 }, { label: '맞은편 차', s: 125, x: -1.75, v: 0 },
     ],
