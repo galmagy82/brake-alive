@@ -704,13 +704,14 @@ const SCENARIOS = [
     // 굽은 국도: 오른쪽 → 왼쪽 → 오른쪽 커브 (반지름 170~180m). 커브 안쪽은 비탈과 숲이라 커브 너머가 보이지 않는다.
     // 첫째·둘째 커브는 막힘이 없고, 셋째 커브를 돌자마자 차들이 줄지어 천천히(시속 15km) 가고 있다. 중앙선은 두 줄 실선
     road: { type: 'hill2', half: 3.5, flat: 6, xMin: -2.7, xMax: 2.7, hillStart: 1e6, hillEnd: 1e6 + 1, crest: 1e6, H: 0, zoneStart: -1e4, zoneEnd: 1e4, goal: 860,
-      curves: [{ s0: 150, len: 140, r: 180 }, { s0: 390, len: 140, r: -180 }, { s0: 630, len: 150, r: 170 }] },
+      curves: [{ s0: 150, len: 140, r: 180 }, { s0: 390, len: 140, r: -180 }, { s0: 630, len: 150, r: 170 }],
+      cutHill: 14 },   // 커브 안쪽에 산(높이 14m)을 끼고 돈다: 커브 너머 도로가 산에 가려 보이지 않는다
     player: { s: 0, v: 19.4, x: 1.75 },   // 시속 70km로 출발
-    // 서행 줄 맨 끝의 화물차 (셋째 커브 끝 무렵, 시속 15km)
-    truck: { type: 'truck', label: '화물차', brakes: true, s: 760, x: 1.75, up: 4.17, flat: 4.17, down: 4.17, mass: 6, hl: 5, hw: 1.25, height: 3.5 },
+    // 서행 줄 맨 끝의 화물차 (셋째 커브 안쪽, 끝나기 70m 전. 시속 15km)
+    truck: { type: 'truck', label: '화물차', brakes: true, s: 710, x: 1.75, up: 4.17, flat: 4.17, down: 4.17, mass: 6, hl: 5, hw: 1.25, height: 3.5 },
     oncoming: [
       // 서행 줄: 화물차 앞으로 9m 간격, 시속 15km
-      ...Array.from({ length: 25 }, (_, k) => ({ label: '서행 차량', fwd: true, jam: true, s: 772 + k * 9, v: 4.17, x: 1.75 })),
+      ...Array.from({ length: 25 }, (_, k) => ({ label: '서행 차량', fwd: true, jam: true, s: 722 + k * 9, v: 4.17, x: 1.75 })),
       // 맞은편 차: 띄엄띄엄 시속 80km (막힌 줄을 피하려 중앙선을 넘으면 마주친다)
       ...[900, 1050, 1250, 1500].map(s => ({ label: '맞은편 차', s, v: 22, x: -1.75 })),
     ],
@@ -719,7 +720,7 @@ const SCENARIOS = [
       '앞의 커브에서 아무 일이 없었다고 다음 커브도 안전한 것은 아닙니다.',
       '막힌 줄을 피하려고 중앙선을 넘으면 맞은편 차와 정면으로 마주칠 수 있습니다.',
     ],
-    thumb: { s: 560, x: 1.75, lead: 760 },
+    thumb: { s: 560, x: 1.75, lead: 710 },
     hint: '누르고 있는 동안 왼쪽·오른쪽으로 움직이고, 떼면 그 자리를 유지합니다.',
     replay: 'plan', sightLines: false,
     jamBody: '커브를 돌자마자 차들이 줄지어 천천히 가고 있었습니다. 굽은 길 너머는 운전석에서 보이지 않습니다.',
@@ -980,12 +981,22 @@ function tunnelEnv(ps) {
 }
 
 /* 지형 */
+// 커브 근처 굽음 정도 (커브 앞뒤 50m까지 서서히 줄어든다): 안쪽 산을 커브보다 조금 넓게 두르기 위해
+function curvNear(s) {
+  let best = 0;
+  for (const c of R.curves || []) { const d = s < c.s0 ? c.s0 - s : s > c.s0 + c.len ? s - c.s0 - c.len : 0, w = Math.max(0, 1 - d / 50); if (w * Math.abs(1 / c.r) > Math.abs(best)) best = w / c.r; }
+  return best;
+}
 function bank(s, x) {
   if (R.type === 'alley') return 0;   // 주택가: 언덕 없이 평지
+  if (R.cutHill && R.curves) {   // 굽은 국도: 커브 안쪽(x와 굽는 방향이 같은 쪽)에 산을 끼고 돈다. 도로 가장자리 1m 밖부터 8m 사이에 솟는다
+    const kc = curvNear(s), ax = Math.abs(x), F0 = R.flat || 6;
+    if (kc && x * kc > 0 && ax > F0) { const u = clamp((ax - F0) / 8, 0, 1), w = Math.min(1, Math.abs(kc) * 170); var hillIn = R.cutHill * w * u * u * (3 - 2 * u); }
+  }
   const F = R.flat || 6, ax = Math.abs(x); if (ax <= F) return 0; const d = ax - F;
   let fI = R.intersection ? clamp((Math.abs(s - R.intersection) - R.half - 4) / 40, 0, 1) : 1;   // 가로 도로 옆은 평평하게
   if (R.merge && x > 0) { const M = R.merge, a = M.s0 - M.len * Math.cos(M.ang) - 30, b = M.s1 + M.taper + 20; fI *= clamp(Math.max(a - s, s - b, 0) / 40, 0, 1); }   // 합류 진입로 옆도
-  return fI * 2.5 * (1 - Math.exp(-d / 18)) + fI * 26 * (1 - Math.exp(-d / 160)) * (0.65 + 0.35 * Math.sin(s * 0.0045 + x * 0.013 + 1.3));
+  return fI * 2.5 * (1 - Math.exp(-d / 18)) + fI * 26 * (1 - Math.exp(-d / 160)) * (0.65 + 0.35 * Math.sin(s * 0.0045 + x * 0.013 + 1.3)) + (hillIn || 0);
 }
 const groundY = (s, x) => h(s) - 0.25 + bank(s, x);
 function buildGround() {
