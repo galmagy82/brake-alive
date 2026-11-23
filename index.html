@@ -3695,13 +3695,31 @@ function drawPlanCurve(f) {
   line(-0.18, 'rgba(242,183,5,.95)', 1, null, R.zoneStart, R.zoneEnd); line(0.18, 'rgba(242,183,5,.95)', 1, null, R.zoneStart, R.zoneEnd);
   [-HW, HW].forEach(x => line(x, 'rgba(216,216,208,.5)', 1));
   if (R.goal > sA && R.goal < sB) { const a = P(R.goal, -HW), b = P(R.goal, HW); pctx.strokeStyle = '#f2b705'; pctx.lineWidth = 2; pctx.beginPath(); pctx.moveTo(a[0], a[1]); pctx.lineTo(b[0], b[1]); pctx.stroke(); }
-  // 산에 가려 안 보이는 도로: 눈에서 각 칸(2m × 1m, 높이 1m)까지 곧은 선이 땅(산)에 막히면 어둡게
+  // 산에 가려 안 보이는 도로: 눈에서 도로 위 점(높이 1m)까지 곧은 선이 땅(산)에 막히면 안 보이는 곳.
+  // 가로 0.5m 간격의 세로줄마다 '안 보이는 구간'을 찾아 그 경계를 이분 탐색으로 다듬고, 이어진 띠로 칠한다 (칸 단위 모자이크가 생기지 않게)
   const ey = h(es) + EYE; let anyHidden = false;
+  const hiddenAt = (ss, xx) => {
+    const T = wpos(ss, xx, 0, _pT), ty = h(ss) + 1.0;
+    for (let j = 1; j < 20; j++) { const l = j / 20, [s2, x2] = toRoadSX(E.x + (T.x - E.x) * l, E.z + (T.z - E.z) * l, es + (ss - es) * l); if (groundY(s2, x2) > ey + (ty - ey) * l) return true; }
+    return false;
+  };
+  const edge = (a, b, xx, hidA) => { for (let i = 0; i < 4; i++) { const m = (a + b) / 2; if (hiddenAt(m, xx) === hidA) a = m; else b = m; } return (a + b) / 2; };
   pctx.fillStyle = 'rgba(6,8,12,.62)';
-  for (let ss = Math.floor(es) + 4; ss < sB; ss += 2) for (let xx = -HW - 1.5; xx < HW + 1.5; xx += 1) {
-    const T = wpos(ss + 1, xx + 0.5, 0, _pT), ty = h(ss + 1) + 1.0; let hid = false;
-    for (let j = 1; j < 16 && !hid; j++) { const l = j / 16, [s2, x2] = toRoadSX(E.x + (T.x - E.x) * l, E.z + (T.z - E.z) * l, es + (ss + 1 - es) * l); if (groundY(s2, x2) > ey + (ty - ey) * l) hid = true; }
-    if (hid) { anyHidden = true; const q = [P(ss, xx), P(ss, xx + 1), P(ss + 2.2, xx + 1), P(ss + 2.2, xx)]; pctx.beginPath(); q.forEach((p, i) => i ? pctx.lineTo(p[0], p[1]) : pctx.moveTo(p[0], p[1])); pctx.closePath(); pctx.fill(); }
+  for (let xx = -HW - 1.5; xx < HW + 1.5; xx += 0.5) {
+    const xc = xx + 0.25; let prev = false, start = 0;
+    for (let ss = Math.floor(es) + 4; ss <= sB + 2; ss += 2) {
+      const hid = ss <= sB && hiddenAt(ss, xc);
+      if (hid && !prev) start = ss === Math.floor(es) + 4 ? ss : edge(ss - 2, ss, xc, false);
+      if (!hid && prev) {
+        const end = ss > sB ? sB : edge(ss - 2, ss, xc, true);
+        anyHidden = true; pctx.beginPath();
+        const pts = []; for (let t = start; t < end; t += 2) pts.push(t); pts.push(end);
+        pts.forEach((t, i) => { const p = P(t, xx); i ? pctx.lineTo(p[0], p[1]) : pctx.moveTo(p[0], p[1]); });
+        for (let i = pts.length - 1; i >= 0; i--) { const p = P(pts[i], xx + 0.52); pctx.lineTo(p[0], p[1]); }
+        pctx.closePath(); pctx.fill();
+      }
+      prev = hid;
+    }
   }
   // 시야선: 커브 안쪽 산 모서리(땅이 눈높이를 넘기 시작하는 곳) 중, 내 눈에서 볼 때 가장 바깥쪽으로 보이는 점을 스치는 곧은 선
   const kc0 = curvNear(es + 40) || curvNear(es + 80) || curvNear(es + 120);
