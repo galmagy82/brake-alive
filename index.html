@@ -1772,6 +1772,7 @@ function addBrakeLights(car) {
 // 움직임 구조(outer → spin → body, 어깨·엉덩이 축의 팔다리)와 옷 색 재질(coat·pants)은 예전과 같다
 const PED_SKIN_M = lambert(0xd9b49a), PED_SHOE_M = lambert(0x1e1e22);
 const PED_HAIR_MS = [0x1a1714, 0x2b2119, 0x3b2a1e, 0x141414, 0x5a4636].map(c => lambert(c));
+const PED_EYE_M = new THREE.MeshLambertMaterial({ color: 0x2a2320, skinning: true }), PED_BROW_M = new THREE.MeshLambertMaterial({ color: 0x241c16, skinning: true });
 let pedHairK = 0;
 function makePed() {
   if (LOOK_OLD) return makePedOld();
@@ -1814,13 +1815,14 @@ function makePedOld() {   // 예전 나무토막 인형 (?look=old). 보행자: 
 // 보행자 묶음: 예전 방식(proc)과 3D 사람 모델(model). 시나리오마다 newRound에서 고른다
 const pedPools = { proc: [], model: [] };
 let pedMeshes = pedPools.proc;
-// 3D 사람 모델: Quaternius Universal Animation Library의 마네킹 (CC0). assets/ped.glb = 모델 + 동작 4개만 남긴 가벼운 파일
+// 3D 사람 모델: Quaternius Universal Base Characters의 여자 모델 + Universal Animation Library 동작 (둘 다 CC0).
+// assets/ped_f.glb = 몸·눈·눈썹 + 머리카락 3종 + 동작 4개만 남긴 가벼운 파일 (사용자 결정: 모두 여자 모델)
 const PED_MODEL_SCENES = ['02', '06'];   // 3D 사람 모델을 쓰는 시나리오
 let PED_GLTF = null;
 try {
-  if (!LOOK_OLD && THREE.GLTFLoader && THREE.SkeletonUtils) new THREE.GLTFLoader().load('assets/ped.glb', g => { PED_GLTF = g; }, undefined, () => {});
+  if (!LOOK_OLD && THREE.GLTFLoader && THREE.SkeletonUtils) new THREE.GLTFLoader().load('assets/ped_f.glb', g => { PED_GLTF = g; }, undefined, () => {});
 } catch (e) {}
-// 옷 색 나누기: 모델의 기본 자세(T자, 발 = 0, 키 1.83m) 위치로 부위를 가른다. 목 위·손 = 피부, 골반 아래 = 바지, 발목 아래 = 신발, 나머지 = 옷
+// 옷 색 나누기: 모델의 기본 자세(T자, 발 = 0, 키 1.77m) 위치로 부위를 가른다. 머리·목, 아래팔·손 = 피부(반소매), 골반 아래 = 바지, 발목 아래 = 신발, 나머지 = 옷
 function pedModelMat(coat, pants) {
   const m = new THREE.MeshLambertMaterial({ skinning: true });
   m.userData.coat = coat; m.userData.pants = pants;
@@ -1829,7 +1831,7 @@ function pedModelMat(coat, pants) {
     sh.uniforms.uSkin = { value: new THREE.Color(0xd9b49a) }; sh.uniforms.uShoe = { value: new THREE.Color(0x1e1e22) };
     sh.vertexShader = 'varying vec3 vBindPos;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vBindPos = position;');
     sh.fragmentShader = 'uniform vec3 uCoat;\nuniform vec3 uPants;\nuniform vec3 uSkin;\nuniform vec3 uShoe;\nvarying vec3 vBindPos;\n' + sh.fragmentShader.replace('vec4 diffuseColor = vec4( diffuse, opacity );',
-      'vec3 pc = uCoat;\n  if (vBindPos.y < 0.95) pc = uPants;\n  if (vBindPos.y < 0.12) pc = uShoe;\n  if (vBindPos.y > 1.50 || abs(vBindPos.x) > 0.68) pc = uSkin;\n  vec4 diffuseColor = vec4( pc, opacity );');
+      'vec3 pc = uCoat;\n  if (vBindPos.y < 0.95) pc = uPants;\n  if (vBindPos.y < 0.09) pc = uShoe;\n  if (vBindPos.y > 1.52 || (vBindPos.y > 1.45 && abs(vBindPos.x) < 0.1) || abs(vBindPos.x) > 0.42) pc = uSkin;\n  vec4 diffuseColor = vec4( pc, opacity );');
   };
   m.customProgramCacheKey = () => 'pedModel';
   return m;
@@ -1839,9 +1841,13 @@ function makePedModel() {
   outer.add(spin); spin.add(g); g.position.y = -0.9;
   const coat = new THREE.Color(0x5a6e8c), pants = new THREE.Color(0x2b2f36), mat = pedModelMat(coat, pants);
   const model = THREE.SkeletonUtils.clone(PED_GLTF.scene); model.rotation.y = Math.PI;   // 모델은 +z를 보고 있다 → 게임의 앞(-z)으로 돌린다
-  model.traverse(o => { if (o.isMesh) { o.material = mat; o.frustumCulled = false; } });
-  g.add(model);
-  const head = model.getObjectByName('Head');   // 아이는 머리 뼈를 키워 머리가 큰 아이 비율로 (동작에 크기 변화가 없어 그대로 유지된다)
+  const head = model.getObjectByName('Head');
+  // 머리카락: 3종 중 하나를 머리 뼈에 붙이고 나머지는 뺀다 (꼭짓점이 이미 머리 뼈 기준이라 위치 0)
+  const hairM = PED_HAIR_MS[pedHairK % PED_HAIR_MS.length], styles = ['Hair_Long', 'Hair_Buns', 'Hair_BuzzedFemale'], pick = styles[pedHairK++ % styles.length];
+  styles.forEach(n => { const hm = model.getObjectByName(n); if (!hm) return; hm.parent.remove(hm); if (n === pick && head) { hm.position.set(0, 0, 0); hm.rotation.set(0, 0, 0); hm.scale.set(1, 1, 1); hm.material = hairM; head.add(hm); } });
+  model.traverse(o => { if (!o.isMesh) return; o.frustumCulled = false;
+    if (o.name === 'Eyes') o.material = PED_EYE_M; else if (o.name === 'Eyebrows') o.material = PED_BROW_M; else if (o.isSkinnedMesh) o.material = mat; });
+  g.add(model);   // 아이는 머리 뼈를 키워 머리가 큰 아이 비율로 (동작에 크기 변화가 없어 그대로 유지된다)
   const mixer = new THREE.AnimationMixer(model), clip = n => mixer.clipAction(PED_GLTF.animations.find(a => a.name === n));
   const acts = { walk: clip('Walk_Loop'), jog: clip('Jog_Fwd_Loop'), idle: clip('Idle_Loop') };
   const dummy = () => { const d = new THREE.Group(); g.add(d); return d; };   // 예전 팔다리 자리 (움직임 코드가 건드려도 아무 일 없게)
