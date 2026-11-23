@@ -3027,7 +3027,7 @@ function drawNav(ps, px) {
         const X2 = x - nx / nl * off, Y2 = y - ny / nl * off; i ? g.lineTo(X2, Y2) : g.moveTo(X2, Y2); }); g.stroke(); };
     line(RW, '#46525f', 0); line(1.5, '#f2b705', 0);
     // 경로: 내 차로(오른쪽)를 따라 목적지까지 파랗게
-    const keep = pts.filter(([s2]) => s2 >= ps && s2 <= R.goal); if (keep.length > 1) { const save = pts.splice(0); pts.push(...keep); g.lineCap = 'round'; line(4, 'rgba(70,150,255,.95)', -RW / 4); g.lineCap = 'butt'; pts.splice(0); pts.push(...save); }
+    const keep = pts.filter(([s2]) => s2 >= ps && s2 <= R.goal); if (keep.length > 1) { const save = pts.splice(0); pts.push(...keep); g.lineCap = 'round'; line(4, 'rgba(70,150,255,.95)', RW / 4); g.lineCap = 'butt'; pts.splice(0); pts.push(...save); }
     const ax = cx + px / R.half * RW / 2; g.beginPath(); g.moveTo(ax, myY - 8); g.lineTo(ax + 6, myY + 6); g.lineTo(ax, myY + 3); g.lineTo(ax - 6, myY + 6); g.closePath();
     g.fillStyle = '#fff'; g.fill(); g.lineWidth = 1.5; g.strokeStyle = '#1f5fc4'; g.stroke();
     const tEl = document.querySelector('.nav-turn'); if (tEl.textContent !== '↑') tEl.textContent = '↑';
