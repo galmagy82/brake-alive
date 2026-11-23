@@ -3553,7 +3553,7 @@ function renderGrid() {
     if (sc.ready && thumbs[sc.id]) th.style.backgroundImage = `url(${thumbs[sc.id]})`; else if (!sc.ready) th.textContent = '준비 중';
     const meta = document.createElement('div'); meta.className = 'meta';
     const num = document.createElement('span'); num.className = 'num'; num.textContent = sc.id;
-    const ttl = document.createElement('span'); ttl.className = 'ttl'; ttl.textContent = sc.title;
+    const ttl = document.createElement('span'); ttl.className = 'ttl'; ttl.textContent = sc.ready ? sc.title : '\u00a0';   // 준비 중인 시나리오는 가제목을 보이지 않는다 (칸 높이만 유지)
     const st = document.createElement('span'); st.className = 'st';
     const r = records[sc.id];
     if (!sc.ready) st.textContent = '준비 중';
