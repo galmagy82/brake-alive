@@ -593,30 +593,32 @@ const SCENARIOS = [
     // 편도 2차로 고속도로 터널 (출구 400m). 맞은편 차로는 중앙분리대·터널 벽 너머라 갈 수 없다
     // 터널 안은 주황빛 나트륨등으로 어둡고, 출구는 하얗게 보인다. 출구를 나서는 순간 약 1.5초 동안 눈이 부셔 앞이 거의 안 보인다
     road: { type: 'city4', half: 7.0, flat: 10.5, xMin: 0.9, xMax: 6.3, hillStart: 1e6, hillEnd: 1e6 + 1, crest: 1e6, H: 0,
-      zoneStart: -1e4, zoneEnd: 1e4, goal: 550, tunnel: { s0: -160, s1: 400, twin: true }, median: true,   // 쌍굴: 맞은편 방향도 터널 (리플레이 그늘도 양쪽)
-      // 터널 출구부터 160m에 걸쳐 8m 내려가는 내리막 (터널 안에서는 정체가 잘 안 보인다)
-      descent: { s0: 400, s1: 560, drop: 8 } },
+      zoneStart: -1e4, zoneEnd: 1e4, goal: 550, tunnel: { s0: -160, s1: 400, twin: true }, median: true },   // 쌍굴: 맞은편 방향도 터널. 출구 뒤는 평지
+    sunAhead: true,   // 해 질 녘 낮은 해가 출구 정면에 (눈부심의 원인이 화면에 보이게)
     // 나: 1차로, 시속 100km로 출발
     player: { s: 0, v: 27.8, x: 1.75 },
-    // 정체 줄 2차로 안의 화물차 (시속 10km로 기어간다)
-    truck: { type: 'truck', label: '화물차', brakes: true, s: 514, x: 5.25, up: 2.78, flat: 2.78, down: 2.78, mass: 6, hl: 5, hw: 1.25, height: 3.5 },
+    // 서행 줄 2차로 안의 화물차 (시속 30km)
+    truck: { type: 'truck', label: '화물차', brakes: true, s: 465, x: 5.25, up: 8.33, flat: 8.33, down: 8.33, mass: 6, hl: 5, hw: 1.25, height: 3.5 },
     oncoming: [
       // 2차로의 느린 차들 (시속 70km, 띄엄띄엄). 앞차가 느려지면 따라 느려진다
       ...[-60, 30, 120].map(s => ({ label: '2차로 차', fwd: true, follow: true, s, v: 19.4, x: 5.25 })),
-      // 터널 출구 약 90m 뒤부터 시작되는 정체 (보면 멈출 수 있는 거리. 눈부심 때문에 못 봐서 사고가 난다): 두 차로 모두 시속 10km로 기어간다 (차 중심 간격 6.5m, 차 사이 약 2m)
-      ...Array.from({ length: 23 }, (_, k) => ({ label: '정체 차량', fwd: true, jam: true, s: 495 + k * 6.5, v: 2.78, x: 1.75 })),
-      ...[491, 497.5, 504, ...Array.from({ length: 18 }, (_, k) => 523 + k * 6.5)].map(s => ({ label: '정체 차량', fwd: true, jam: true, s, v: 2.78, x: 5.25 })),
+      // 터널 출구 밖 서행 정체: 두 차로 모두 시속 30km, 차 간격 18m. 내가 출구를 나설 즈음 서행 줄 끝이 출구 약 120m 앞
+      // (보면 멈출 수 있는 거리. 눈부심 1.5초 동안 못 봐서 사고가 난다)
+      ...Array.from({ length: 15 }, (_, k) => ({ label: '서행 차량', fwd: true, jam: true, s: 430 + k * 18, v: 8.33, x: 1.75 })),
+      ...[426, 444, ...Array.from({ length: 12 }, (_, k) => 480 + k * 18)].map(s => ({ label: '서행 차량', fwd: true, jam: true, s, v: 8.33, x: 5.25 })),
     ],
     lessons: [
       '터널을 나오는 순간에는 밝은 빛 때문에 잠깐 앞이 보이지 않습니다.',
       '터널 출구가 가까워지면 미리 속도를 줄이고, 앞차와 거리를 넉넉히 두세요.',
       '터널 출구 바로 뒤에 정체가 있을 수 있다고 생각하고 달립니다.',
+      '긴 터널을 빠져나오면 긴장이 풀려 오히려 속도를 올리기 쉽습니다. 눈이 부신 그 순간이 가장 위험합니다.',
     ],
-    thumb: { s: 330, x: 1.75, lead: 514 },
+    thumb: { s: 330, x: 1.75, lead: 465 },
     hint: '누르고 있는 동안 왼쪽·오른쪽으로 움직이고, 떼면 그 자리를 유지합니다.',
     replay: 'plan',
-    truckBody: '터널 출구 바로 뒤에서 정체가 시작되고 있었습니다. 눈이 부신 동안에는 앞차를 볼 수 없습니다.',
+    truckBody: '터널 출구 밖에서 차들이 서행하고 있었습니다. 눈이 부신 동안에는 앞차를 볼 수 없습니다.',
     chainBody: '터널 출구의 정체를 늦게 알아챈 한 대가 여러 차를 사고에 휘말리게 했습니다.',
+    jamBody: '터널을 나오는 순간 밝은 빛에 눈이 적응하는 동안은 앞이 거의 보이지 않습니다. 출구 밖에서 차들이 시속 30km로 서행하고 있었습니다.',
     sightLines: false,   // 위험은 가림이 아니라 눈부심
   },
   {
@@ -795,6 +797,7 @@ function buildWorld() {
     scene.remove(world);
     world.traverse(o => { if (o.geometry) o.geometry.dispose(); (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { if (m && m.map) m.map.dispose(); }); });   // 재질이 여러 개인 건물도 처리
   }
+  if (SC.sunAhead) sun.position.set(30, 75, -2100); else sun.position.set(-420, 60, -1900);   // 07: 해 질 녘 해가 출구 정면에
   world = new THREE.Group(); scene.add(world); alleyBld = alleyHide = alleyFoot = null; tunnelExit = tunnelGrp = tunnelFoot = tunnelMouth = null; envIn = null;
   buildGround(); buildRoad(); buildTrees(); buildGoal();
   if (R.type === 'city4') {
