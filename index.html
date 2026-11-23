@@ -761,7 +761,7 @@ const SCENARIOS = [
     // 신호 일정(초): 차량 노란불 0.5, 빨간불 2.0, 보행자 녹색 3.0~15.0 (12.0부터 깜빡임), 차량 녹색 16.0
     xsig: { yellowAt: 0.5, redAt: 2.0, pedOn: 3.0, pedFlash: 12.0, pedOff: 15.0, greenAt: 16.0 },
     player: { s: 0, v: 8.33, x: 5.25 },   // 시속 30km
-    // 1차로 버스: 정지선에 앞을 맞춰 서 있고, 녹색불이 돼도 출발하지 않는다. 뛰어든 사람(peds 7번째)이 다 건너면 출발 (시속 40km까지)
+    // 1차로 버스: 정지선에 앞을 맞춰 서 있고, 녹색불이 돼도 출발하지 않는다. 뛰어든 사람(peds 7번째)이 버스 앞을 다 지나가면 출발 (시속 40km까지)
     truck: { type: 'bus', label: '버스', parked: true, s: 109.35, x: 1.75, up: 0, flat: 0, down: 0, mass: 10, hl: 5.6, hw: 1.25, height: 3.2, goAfterPed: 6, goV: 11.1, goAcc: 1.5 },
     oncoming: [
       // 3차로 승용차: 정지선에 서 있다가 녹색불(16초)에 출발
@@ -3006,9 +3006,9 @@ function step(dt) {
     if (t >= SC.signal.greenAt && !tr.braking) { tr.v += S.acc * dt; if (tr.s >= S.brakeS) { tr.braking = true; ev('truckBrake'); } }
     if (tr.braking) tr.v = Math.max(0, tr.v - S.dec * dt);
     tr.s += tr.v * dt;
-  } else if (SC.truck.goAfterPed != null) {   // 11: 서 있다가, 정해진 사람이 다 건너면 출발한다
+  } else if (SC.truck.goAfterPed != null) {   // 11: 서 있다가, 정해진 사람이 버스 앞을 다 지나가면 출발한다
     const q = G.peds[SC.truck.goAfterPed];
-    if (!tr.go && q && !q.fly && q.x >= (q.xEnd ?? SC.pedXEnd)) { tr.go = true; ev('busGo'); }
+    if (!tr.go && q && !q.fly && q.x >= SC.truck.x + SC.truck.hw + 0.5) { tr.go = true; ev('busGo'); }   // 버스 오른쪽 옆면을 0.5m 지나면
     if (tr.go) tr.v = Math.min(SC.truck.goV, tr.v + SC.truck.goAcc * dt);
     tr.s += tr.v * dt;
   } else {
