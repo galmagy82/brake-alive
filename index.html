@@ -754,13 +754,13 @@ const SCENARIOS = [
       ...[[-1.75, 127.6], [-5.25, 128.0], [-8.75, 127.8], [-1.75, 134.5]].map(([x, s]) => ({ label: '맞은편 차', s, v: 0, x })),
     ],
     peds: [
-      // 보행자 녹색불에 양쪽에서 건너는 사람들 (모두 차량 녹색불 전에 다 건넌다)
-      { label: '보행자 1', s: 119.2, x0: 12.5, xEnd: -12.5, dir: -1, v: 2.4, startAt: 3.3, scale: 1, stay: true },
-      { label: '보행자 2', s: 120.6, x0: 12.8, xEnd: -12.8, dir: -1, v: 2.28, startAt: 3.9, scale: 1, stay: true },
-      { label: '보행자 3', s: 119.8, x0: 13.1, xEnd: -13.1, dir: -1, v: 2.52, startAt: 4.6, scale: 1, stay: true },
-      { label: '보행자 4', s: 120.9, x0: -12.5, xEnd: 12.5, dir: 1, v: 2.4, startAt: 3.5, scale: 1, stay: true },
-      { label: '보행자 5', s: 119.4, x0: -12.9, xEnd: 12.9, dir: 1, v: 2.28, startAt: 4.2, scale: 1, stay: true },
-      { label: '보행자 6', s: 120.3, x0: -13.2, xEnd: 13.2, dir: 1, v: 2.64, startAt: 5.0, scale: 1, stay: true },
+      // 보행자 녹색불에 양쪽에서 걸어서 건너는 사람들: 띄엄띄엄 출발해 내 차로에 약 2초마다 누군가 있도록 (사이로 지나가지 못하게)
+      { label: '보행자 1', s: 119.0, x0: 12.5, xEnd: -12.5, dir: -1, v: 2.4, startAt: 3.3, scale: 1, stay: true, walk: true },
+      { label: '보행자 2', s: 121.0, x0: 12.8, xEnd: -12.8, dir: -1, v: 2.28, startAt: 5.1, scale: 1, stay: true, walk: true },
+      { label: '보행자 3', s: 120.0, x0: 13.1, xEnd: -13.1, dir: -1, v: 2.52, startAt: 10.5, scale: 1, stay: true, walk: true },
+      { label: '보행자 4', s: 120.6, x0: -12.5, xEnd: 12.5, dir: 1, v: 2.4, startAt: 3.3, scale: 1, stay: true, walk: true },
+      { label: '보행자 5', s: 119.4, x0: -12.9, xEnd: 12.9, dir: 1, v: 2.28, startAt: 5.1, scale: 1, stay: true, walk: true },
+      { label: '보행자 6', s: 120.2, x0: -13.2, xEnd: 13.2, dir: 1, v: 2.64, startAt: 8.7, scale: 1, stay: true, walk: true },
       // 늦게 뛰어드는 사람: 맞은편 인도에서 15초에 뛰기 시작해 녹색불 1초 뒤(약 20초) 버스 앞을 지나 내 차로로 들어온다
       { label: '뛰어든 사람', title: '신호 바뀐 뒤 뛰어든 보행자', s: 120.6, x0: -13.0, xEnd: 14.0, dir: 1, v: 4.5, startAt: 15.0, scale: 1, stay: true, cap: '버스 앞으로 사람이 뛰어듭니다.' },
     ],
@@ -2124,7 +2124,7 @@ function pedModelPose(pm, i, ph, mode, t) {
   // 걸음 위상이 바뀌면 '움직인 시각'을 기록. 화면이 계산보다 자주 그려져 같은 위상이 두 번 나와도 걷기를 유지하도록 0.25초 넘게 멈춰야 서 있음
   else if (Math.abs(ph - pm.lastPh) > 1e-6 || !(t >= pm.moveT) || t - pm.moveT < 0.25) {
     if (Math.abs(ph - pm.lastPh) > 1e-6 || !(t >= pm.moveT)) pm.moveT = t;
-    act = q && (q.cv ?? q.v) >= 2.4 ? pm.acts.jog : pm.acts.walk;
+    act = q && !q.walk && (q.cv ?? q.v) >= 2.4 ? pm.acts.jog : pm.acts.walk;   // walk: 빠르게 걸어도 걷는 동작
     const cyc = ph * 4.2 / pm.outer.scale.x / (Math.PI * 2); time = ((cyc % 1) + 1) % 1 * act.getClip().duration;
   }
   else { act = pm.acts.idle; time = Math.max(0, t) % act.getClip().duration; }   // 서 있음
