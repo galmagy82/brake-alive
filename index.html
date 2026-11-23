@@ -971,16 +971,35 @@ const WALK_TEX = noiseTex(256, (x, y, n, sm) => ((x % 64 < 2) || (y % 64 < 2) ? 
 const GROUND_TEX = noiseTex(128, (x, y, n, sm) => 0.94 + (sm - 0.5) * 0.3 + (n - 0.5) * 0.14, 6);   // 평균 밝기는 예전과 거의 같게
 // 인도 옆면: 인도 판(ribbon 조각마다 사각형 하나)의 네 가장자리에서 땅까지 내려오는 세로 면을 붙인다
 // 도로 쪽은 연석(밝은 콘크리트), 안쪽에 겹치는 면은 인도 판에 가려 보이지 않는다
+// 연석 옆면 무늬: 1m 블록마다 세로 줄눈, 블록마다 밝기 조금씩, 콘크리트 점, 윗모서리 밝은 선 (128px = 블록 2개 = 2m)
+let CURB_TEX = null;
+function curbTex() {
+  if (CURB_TEX) return CURB_TEX;
+  const r = rng(515);
+  const t = texFrom(128, 32, g => {
+    [0, 64].forEach(x0 => { const k = 0.86 + r() * 0.12; g.fillStyle = `rgb(${Math.round(200 * k)},${Math.round(198 * k)},${Math.round(192 * k)})`; g.fillRect(x0, 0, 64, 32); });
+    for (let i = 0; i < 260; i++) { g.fillStyle = `rgba(${r() < 0.5 ? '0,0,0' : '255,255,255'},${0.05 + r() * 0.08})`; g.fillRect(r() * 128, r() * 32, 1.5, 1.5); }
+    g.fillStyle = 'rgba(40,38,34,.55)'; g.fillRect(0, 0, 2, 32); g.fillRect(64, 0, 2, 32);   // 세로 줄눈
+    g.fillStyle = 'rgba(255,255,255,.35)'; g.fillRect(0, 0, 128, 2);                       // 윗모서리
+  });
+  t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; t.wrapS = THREE.RepeatWrapping; t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  return (CURB_TEX = t);
+}
 function curbFaces(walkArr) {
-  const v = [], DROP = 0.42;   // 인도 윗면(+0.15)에서 땅 아래(-0.27)까지
-  const face = (xa, ya, za, xb, yb, zb) => v.push(xa, ya, za, xb, yb, zb, xb, yb - DROP, zb, xa, ya, za, xb, yb - DROP, zb, xa, ya - DROP, za);
+  const v = [], uv = [], DROP = 0.42;   // 인도 윗면(+0.15)에서 땅 아래(-0.27)까지
+  // 면 하나 = 위 두 점(a, b)에서 DROP만큼 내려온 사각형. 질감 가로 좌표는 면을 따라 간 거리(2m에 한 번), 세로는 위(1)→아래(0)
+  const face = (xa, ya, za, xb, yb, zb) => {
+    v.push(xa, ya, za, xb, yb, zb, xb, yb - DROP, zb, xa, ya, za, xb, yb - DROP, zb, xa, ya - DROP, za);
+    const ua = (Math.abs(xa - xb) > Math.abs(za - zb) ? xa : -za) / 2, ub = (Math.abs(xa - xb) > Math.abs(za - zb) ? xb : -zb) / 2;
+    uv.push(ua, 1, ub, 1, ub, 0, ua, 1, ub, 0, ua, 0);
+  };
   for (let i = 0; i + 17 < walkArr.length; i += 18) {
     const q = walkArr, x0 = q[i], ya = q[i + 1], za = q[i + 2], x1 = q[i + 3], yb = q[i + 7], zb = q[i + 8];
     face(x0, ya, za, x0, yb, zb); face(x1, ya, za, x1, yb, zb);   // 옆쪽 두 면
     face(x0, ya, za, x1, ya, za); face(x0, yb, zb, x1, yb, zb);   // 앞뒤 두 면 (끊기는 곳의 끝면)
   }
-  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3)); g.computeVertexNormals();
-  const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color: 0xa3a19b, side: THREE.DoubleSide })); world.add(m); return m;
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.computeVertexNormals();
+  const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color: 0xc4c2bc, map: curbTex(), side: THREE.DoubleSide })); world.add(m); return m;
 }
 function ribbonMesh(arr, mat) {
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(arr, 3)); g.computeVertexNormals();
