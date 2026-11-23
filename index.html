@@ -665,21 +665,23 @@ const SCENARIOS = [
     // 나는 오른쪽 가로 도로에서 와서 교차로(100m)에서 큰길로 우회전한다 (자동으로 돈다. 브레이크만 된다)
     // 내 쪽 신호는 빨간불(우회전은 가능), 큰길 맞은편은 빨간불 + 좌회전 화살표 → 맞은편 1차로의 차가 유턴해 내 쪽 2차로까지 넘어온다
     road: { type: 'city4', half: 7.0, flat: 10.5, xMin: -6.3, xMax: 6.3, hillStart: 1e6, hillEnd: 1e6 + 1, crest: 1e6, H: 0,
-      zoneStart: -1e4, zoneEnd: 1e4, goal: 262.25, intersection: 100, crossCars: false, leftArrow: true },
+      zoneStart: -1e4, zoneEnd: 1e4, goal: 262.25, intersection: 100, crossCars: false, leftArrow: true,
+      // 유턴 구간: 맞은편 정지선에서 30~50m 뒤. 이 구간의 중앙선은 노란 실선 대신 흰 점선
+      uturnZone: { s0: 140.4, s1: 160.4 } },
     // path: 가로 도로 2차로(교차로 100+5.25)를 따라 40m 다가와 반지름 7m로 우회전 → 큰길 2차로(x 5.25). 도는 동안은 시속 20km 이하
     player: { s: 105.25, v: 5.56, x: 52.25, path: { kind: 'right', ix: 100, approach: 40, R: 7, vcap: 5.56 } },
     signalArrow: { at: 4.0 },   // 맞은편 좌회전 화살표가 켜지는 시각
     // 맞은편 2차로에서 빨간불에 서 있는 화물차
     truck: { type: 'truck', label: '화물차', parked: true, dir: -1, s: 115, x: -5.25, up: 0, flat: 0, down: 0, mass: 6, hl: 5, hw: 1.25, height: 3.5 },
     oncoming: [
-      // 유턴 차: 맞은편 1차로 맨 앞에서 기다리다가 좌회전 화살표에 출발해, 반지름 3.5m로 돌아 내 쪽 2차로로 들어온다
-      { label: '유턴 차', s: 111, x: -1.75, v: 0, color: 0x7a2a2a, uturn: { S0: 111, R: 3.5, go: 6.8, v1: 4.5, a1: 2.2, v2: 12, a2: 2.0 } },
+      // 유턴 차: 맞은편 1차로를 시속 40km로 달려오다가 유턴 구간(152m)에서 시속 16km로 줄여 반지름 3.5m로 돌아 내 쪽 2차로로 들어온다
+      { label: '유턴 차', s: 262, x: -1.75, v: 11, color: 0x7a2a2a, uturn: { S0: 152, R: 3.5, vt: 4.5, dec: 2.5, v2: 12, a2: 2.0 } },
       // 그 뒤에서 신호를 기다리는 차들 (서 있다)
       { label: '맞은편 차', s: 118, x: -1.75, v: 0 }, { label: '맞은편 차', s: 125, x: -1.75, v: 0 },
     ],
     lessons: [
       '우회전해 들어가는 차로에 맞은편 유턴 차가 함께 들어올 수 있습니다.',
-      '맞은편에 좌회전 신호가 켜지면 유턴하는 차가 크게 돌아 바깥 차로까지 넘어옵니다.',
+      '중앙선이 흰 점선인 곳은 유턴 구간입니다. 맞은편 차가 크게 돌아 바깥 차로까지 넘어올 수 있습니다.',
       '우회전은 천천히, 유턴 차가 다 돌 때까지 기다린 뒤 들어갑니다.',
     ],
     thumb: { s: 70, x: 5.25, lead: 115 },
@@ -1243,7 +1245,12 @@ function buildRoad() {
       quad(white, M.s1, HW + 3.72, M.s1 + M.taper, HW + 0.05, 0.15, 0.02);              // 좁아지는 선
       for (let k = M.s0; k < M.s1; k += 6) ribbon(white, k, k + 3, HW - 0.2, HW - 0.05, 0.02, 1);   // 2차로와 가속 차로 사이 점선
     }
-    along(yellow, -0.24, -0.1, 0.02); along(yellow, 0.1, 0.24, 0.02);   // 중앙선 두 줄 실선
+    // 중앙선 두 줄 실선. 유턴 구간에서는 끊고 흰 점선(3m 칠하고 3m 비움)
+    const UZ = R.uturnZone;
+    if (UZ) {
+      [[-0.24, -0.1], [0.1, 0.24]].forEach(([a, b]) => { ribbon(yellow, -320, ix ? ix - HW - 0.2 : UZ.s0, a, b, 0.02); ribbon(yellow, ix ? Math.max(ix + HW + 0.2, -320) : -320, UZ.s0, a, b, 0.02); ribbon(yellow, UZ.s1, 1720, a, b, 0.02); });
+      for (let k = UZ.s0; k < UZ.s1; k += 6) ribbon(white, k, Math.min(k + 3, UZ.s1), -0.08, 0.08, 0.02, 1);
+    } else { along(yellow, -0.24, -0.1, 0.02); along(yellow, 0.1, 0.24, 0.02); }
     for (let k = -320; k < 1720; k += 10) {   // 차로 경계 점선 (횡단보도·교차로 부근 제외)
       if (cw && k + 3 > cw - 12 && k < cw + 6) continue;
       if (ix && k + 3 > ix - HW - 12 && k < ix + HW + 12) continue;
@@ -2550,7 +2557,7 @@ function newRound() {
     if (o.fwd) Object.assign(c, { fwd: true, yaw: 0 });                    // 나와 같은 방향으로 달리는 차
     if (o.follow) Object.assign(c, { follow: true, vT: o.v });   // 앞차가 느리면 따라 느려진다
     if (o.jam) c.jam = true;                                        // 정체 줄의 차
-    if (o.uturn) Object.assign(c, { uturn: o.uturn, u: 0, x0: c.x, yaw: 0 });
+    if (o.uturn) Object.assign(c, { uturn: o.uturn, u: 0, x0: c.x, yaw: 0, v1: o.v, turning: false });
     if (o.merge) { Object.assign(c, { fwd: true, merge: true, u: o.u0, cutAt: o.cutAt, cutV: o.cutV, cutA: o.cutA }); Object.assign(c, mergePos(c.u)); }
   });   // 처음부터 정해진 위치에서 달린다
   carMeshes.forEach(m => m.outer.visible = false);
@@ -2581,12 +2588,15 @@ function ev(type, data) { G.events.push(Object.assign({ t: G.t, type }, data || 
 // 비보호 좌회전 차: 직진하다 회전 시작점 앞에서 속도를 줄이고, 1/4 원을 그리며 내 앞을 가로질러 오른쪽 도로로 나간다.
 // 위치와 속도는 정해져 있고 내 운전에 반응하지 않는다. c.u = 출발점부터 달린 거리
 // 유턴: 정해진 시각(go)에 출발 → 반지름 R의 반원을 돌아 내 쪽 차로로 (돌고 나면 같은 방향 차가 된다)
+// 유턴: 맞은편 차로를 달려오다 유턴 지점(S0) 앞에서 줄인 속도(vt)로 반지름 R의 반원을 돌아 내 쪽 차로로 (돌고 나면 같은 방향 차가 된다)
 function uturnMove(c, dt) {
   const U = c.uturn, arc = Math.PI * U.R, cx = c.x0 + U.R;
-  if (G.t < U.go) return;
-  if (!c.goT) { c.goT = G.t; ev('uturnStart', { idx: c.idx }); }
-  c.v = c.u < arc ? Math.min(U.v1, c.v + U.a1 * dt) : Math.min(U.v2, c.v + U.a2 * dt);
-  c.u += c.v * dt;
+  if (!c.turning) {   // 다가오는 중: 남은 거리에 맞춰 vt까지 감속
+    const d = c.s - U.S0; c.v = Math.min(c.v1, Math.sqrt(U.vt * U.vt + 2 * U.dec * Math.max(0, d)));
+    c.s -= c.v * dt; c.yaw = 0;
+    if (c.s <= U.S0) { c.turning = true; c.u = U.S0 - c.s; ev('uturnStart', { idx: c.idx }); }
+    else return;
+  } else { c.v = c.u < arc ? U.vt : Math.min(U.v2, c.v + U.a2 * dt); c.u += c.v * dt; }
   if (c.u <= arc) { const ph = Math.PI + c.u / U.R; c.x = cx + U.R * Math.cos(ph); c.s = U.S0 + U.R * Math.sin(ph); c.yaw = c.u / U.R; }
   else { c.fwd = true; c.yaw = 0; c.x = cx + U.R; c.s = U.S0 + (c.u - arc); }
 }
@@ -3117,7 +3127,7 @@ function captionFor(e) {
   const end = G.end, toCrash = end.kind === 'crash' ? (end.t - e.t).toFixed(1) : null;
   switch (e.type) {
     case 'sign': return '앞지르기 금지 표지판입니다. 여기부터 중앙선이 두 줄 실선으로 바뀝니다.';
-    case 'uturnStart': return '맞은편 좌회전 신호에 맞춰 유턴 차가 출발합니다.';
+    case 'uturnStart': return '유턴 구간에서 맞은편 차가 유턴을 시작합니다.';
     case 'turnMe': return '내 차가 우회전을 시작합니다.';
     case 'tunnelEnter': return e.gap != null ? `터널에 들어서는 순간입니다. 어두워 보이지 않았지만, 앞차는 ${Math.max(0, e.gap).toFixed(0)}m 앞에 있었습니다. (시속 ${Math.round(e.v * 3.6)}km)` : '터널에 들어서는 순간입니다.';
     case 'tunnelExit': return e.gap != null ? `터널을 나서는 순간입니다. 눈이 부셔 보이지 않았지만, 앞차는 ${Math.max(0, e.gap).toFixed(0)}m 앞에 있었습니다. (시속 ${Math.round(e.v * 3.6)}km)` : '터널을 나서는 순간입니다.';
@@ -3334,7 +3344,7 @@ function showResult() {
       body = (G.flags.cutT ? '' : '') + '합류 지점에서는 합류하던 차가 갑자기 들어올 수 있습니다. 미리 속도를 줄여 앞 공간을 남겨 두세요.';
     } else if (e.type === 'uturn') {
       title = '유턴 차와 충돌'; sub = '';
-      body = '맞은편에 좌회전 신호가 켜지자 유턴한 차가 크게 돌아 내가 들어가던 차로까지 넘어왔습니다.';
+      body = '교차로를 지나자마자 있는 유턴 구간에서, 맞은편 차가 크게 돌아 내가 달리던 차로까지 넘어왔습니다.';
     } else if (e.type === 'jam') {
       title = '정체 차량 추돌'; sub = '';
       body = SC.jamBody || '터널을 나오는 순간 밝은 빛에 눈이 적응하는 동안은 앞이 거의 보이지 않습니다. 출구 바로 뒤에서 정체가 시작되고 있었습니다.';
