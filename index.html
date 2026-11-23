@@ -593,7 +593,7 @@ const SCENARIOS = [
     // 편도 2차로 고속도로 터널 (출구 400m). 맞은편 차로는 중앙분리대·터널 벽 너머라 갈 수 없다
     // 터널 안은 주황빛 나트륨등으로 어둡고, 출구는 하얗게 보인다. 출구를 나서는 순간 약 1.5초 동안 눈이 부셔 앞이 거의 안 보인다
     road: { type: 'city4', half: 7.0, flat: 10.5, xMin: 0.9, xMax: 6.3, hillStart: 1e6, hillEnd: 1e6 + 1, crest: 1e6, H: 0,
-      zoneStart: -1e4, zoneEnd: 1e4, goal: 510, tunnel: { s0: -160, s1: 400 }, median: true,
+      zoneStart: -1e4, zoneEnd: 1e4, goal: 510, tunnel: { s0: -160, s1: 400, twin: true }, median: true,   // 쌍굴: 맞은편 방향도 터널 (리플레이 그늘도 양쪽)
       // 터널 출구부터 160m에 걸쳐 8m 내려가는 내리막 (터널 안에서는 정체가 잘 안 보인다)
       descent: { s0: 400, s1: 560, drop: 8 } },
     // 나: 1차로, 시속 100km로 출발
