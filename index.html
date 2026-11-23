@@ -814,13 +814,14 @@ const SCENARIOS = [
     oncoming: [
       // 짐 실은 소형 트럭 세 대 (시속 30km)
       // 트럭 4: 트럭 3보다 60m 앞. 셋째 커브(680~830m)를 트럭 3과 함께 지난다 (트럭 3만 추월해서는 빠져나갈 수 없다)
-      ...[[60, '트럭 1'], [171, '트럭 2'], [308, '트럭 3'], [368, '트럭 4']].map(([s, label]) => ({ label, fwd: true, jam: true, s, v: 8.33, x: 1.75, model: 'ptruck', color: 0xe8e6e0 })),
+      // 트럭 5~7: 트럭 4보다 500m, 그보다 200m, 또 300m 앞
+      ...[[60, '트럭 1'], [171, '트럭 2'], [308, '트럭 3'], [368, '트럭 4'], [868, '트럭 5'], [1068, '트럭 6'], [1368, '트럭 7']].map(([s, label]) => ({ label, fwd: true, jam: true, s, v: 8.33, x: 1.75, model: 'ptruck', color: 0xe8e6e0 })),
       // 완만한 커브의 맞은편 차 한 대: 트럭 2에 다가갈 즈음(약 14초) 커브를 지나간다
       { label: '맞은편 차', s: 588, v: 22, x: -1.75, color: 0x3c4a3e },
-      // 가린 커브 구간의 맞은편 차들: 트럭 3(시속 30km)이 있는 곳을 약 27~81초에 3초 간격으로 지나간다 (출발 위치 = 308 + 30.33 × 만나는 시각)
-      ...Array.from({ length: 19 }, (_, k) => ({ label: '맞은편 차', s: Math.round(308 + 30.33 * (27 + 3 * k)), v: 22, x: -1.75, color: [0x7a2a2a, 0xb9b9b4, 0xd0b04a, 0x2f4f6f, 0x6d2a2a, 0x3c4a3e][k % 6] })),
+      // 가린 커브 구간의 맞은편 차들 (커브 구간 끝 1000m에서 나타난다: 마지막 직선에는 맞은편 차가 줄지어 오지 않는다): 트럭 3(시속 30km)이 있는 곳을 약 27~81초에 3초 간격으로 지나간다 (출발 위치 = 308 + 30.33 × 만나는 시각)
+      ...Array.from({ length: 19 }, (_, k) => ({ label: '맞은편 차', s: Math.round(308 + 30.33 * (27 + 3 * k)), v: 22, x: -1.75, appear: 1000, color: [0x7a2a2a, 0xb9b9b4, 0xd0b04a, 0x2f4f6f, 0x6d2a2a, 0x3c4a3e][k % 6] })),
       // 셋째 커브 부근(트럭 3이 680~830m를 지나는 약 45~63초)에는 사이사이 한 대씩 더: 1.5초 간격
-      ...Array.from({ length: 6 }, (_, k) => ({ label: '맞은편 차', s: Math.round(308 + 30.33 * (46.5 + 3 * k)), v: 22, x: -1.75, color: [0x3c4a3e, 0xd0b04a, 0x7a2a2a, 0xb9b9b4, 0x2f4f6f, 0x6d2a2a][k] })),
+      ...Array.from({ length: 6 }, (_, k) => ({ label: '맞은편 차', s: Math.round(308 + 30.33 * (46.5 + 3 * k)), v: 22, x: -1.75, appear: 1000, color: [0x3c4a3e, 0xd0b04a, 0x7a2a2a, 0xb9b9b4, 0x2f4f6f, 0x6d2a2a][k] })),
     ],
     lessons: [
       '앞서 추월이 괜찮았다고 다음 커브도 괜찮은 것은 아닙니다.',
@@ -2864,7 +2865,8 @@ function newRound() {
     if (o.queue) Object.assign(c, { queue: o.queue, vT: o.v, v: 0 });   // 신호 대기: 서 있다가 출발
     if (o.fwd) Object.assign(c, { fwd: true, yaw: 0 });                    // 나와 같은 방향으로 달리는 차
     if (o.follow) Object.assign(c, { follow: true, vT: o.v });
-    if (o.stopAt) c.stopAt = o.stopAt;   // 앞차가 느리면 따라 느려진다
+    if (o.stopAt) c.stopAt = o.stopAt;
+    if (o.appear != null && o.s > o.appear) Object.assign(c, { s: o.appear, active: false, wakeT: (o.s - o.appear) / o.v });   // appear: 이 위치에 닿는 시각에 나타난다 (그 앞 직선에서는 보이지 않는다)   // 앞차가 느리면 따라 느려진다
     if (o.jam) c.jam = true;
     if (o.startAt != null) Object.assign(c, { go0: o.startAt, acc: o.acc || 2.5, vT: o.v, v: 0 });   // 신호 대기: 정해진 시각(녹색불)에 출발                                        // 정체 줄의 차
     if (o.uturn) { Object.assign(c, { uturn: o.uturn, u: 0, x0: c.x, yaw: 0, v1: o.v, turning: false }); addBlinker(carMeshes[c.idx]); }   // 유턴 직전 왼쪽 깜빡이
@@ -3009,6 +3011,7 @@ function step(dt) {
     tr.v += (tv - tr.v) * Math.min(1, dt * 0.6); tr.s += tr.v * dt;
   }
   if (G.bait) { const bt = G.bait, bl = slope(bt.s), bv = bl > 0.03 ? SC.bait.up : (bl < -0.03 ? SC.bait.down : SC.bait.flat); bt.v += (bv - bt.v) * Math.min(1, dt * 0.6); bt.s += bt.v * dt; }
+  G.cars.forEach(c => { if (c.wakeT != null && G.t >= c.wakeT) { c.active = true; c.wakeT = null; } });
   G.cars.forEach(c => { if (!c.active) return; if (c.uturn) uturnMove(c, dt); else if (c.turn) turnMove(c, dt); else if (c.cross) { c.x -= c.v * dt; if (c.x < -150) c.active = false; } else if (c.merge) mergeMove(c, dt); else if (c.fwd) { if (c.go0 !== undefined) c.v = G.t < c.go0 ? 0 : Math.min(c.vT, c.v + c.acc * dt); if (c.follow) followMove(c, dt); c.s += c.v * dt; }
     else if (c.queue) {   // 녹색불이 켜지고, 가로질러 달려오는 차가 모두 지나간 뒤 출발한다
       if (!c.go && G.t >= SC.signal.greenAt && !G.cars.some(r => r.cross && r.active && r.x > -9)) c.go = true;
