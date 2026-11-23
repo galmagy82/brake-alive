@@ -794,8 +794,10 @@ function buildTunnel() {
   const TW = !!T.twin;   // 쌍굴: 맞은편 방향 터널이 왼쪽에 나란히 (가운데 벽을 함께 쓴다)
   (TW ? [-xr, 0, xr] : [0, xr]).forEach(x => { const f = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.5, L), wallM); f.position.set(x, y0 + 0.25, mid); tunnelFoot.add(f); });
   // 리플레이: 터널 안이었던 바닥을 어둡게 (어디부터 어두웠는지 보이도록)
-  { const w = TW ? 2 * xr : xr, sh = new THREE.Mesh(new THREE.PlaneGeometry(w, L).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.45, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }));
-    sh.position.set(TW ? 0 : xr / 2, y0 + 0.06, mid); tunnelFoot.add(sh); }
+  // 도로 부분은 도로 높이, 인도 부분(차로 끝 ~ 벽)은 인도 높이(15cm) 위에 깐다 (인도 아래에 묻혀 얼룩지지 않게)
+  { const shM = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.45, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
+    const HW = R.half + 0.2, part = (x0, x1, y) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, L).rotateX(-Math.PI / 2), shM); m.position.set((x0 + x1) / 2, y0 + y, mid); tunnelFoot.add(m); };
+    part(TW ? -HW : 0, HW, 0.06); part(HW, xr, 0.2); if (TW) part(-xr, -HW, 0.2); }
   const add = (w, hh, x, y, m) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, hh, L), m); b.position.set(x, y0 + y, mid); tunnelGrp.add(b); };
   // 아치 천장: 반원통(가로 반지름 xr/2, 세로 top-wallH)을 터널 길이만큼 (안쪽에서도 보이게 양면)
   const archM = new THREE.MeshLambertMaterial({ color: 0x3a3833, side: THREE.DoubleSide });
