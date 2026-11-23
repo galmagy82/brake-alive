@@ -738,8 +738,8 @@ const SCENARIOS = [
     // 녹색불 1초 뒤, 맞은편 인도에서 늦게 뛰어온 사람이 버스 앞을 지나 내 차로로 들어온다. 나는 브레이크로 직접 선다
     road: { type: 'city4', lanes: 3, half: 10.5, flat: 14, xMin: 0.9, xMax: 9.6, hillStart: 1e6, hillEnd: 1e6 + 1, crest: 1e6, H: 0,
       zoneStart: -1e4, zoneEnd: 1e4, goal: 260, crosswalk: 120 },
-    // 신호 일정(초): 차량 노란불 2.5, 빨간불 4.0, 보행자 녹색 5.0~15.0 (12.0부터 깜빡임), 차량 녹색 16.0
-    xsig: { yellowAt: 2.5, redAt: 4.0, pedOn: 5.0, pedFlash: 12.0, pedOff: 15.0, greenAt: 16.0 },
+    // 신호 일정(초): 차량 노란불 0.5, 빨간불 2.0, 보행자 녹색 5.0~15.0 (12.0부터 깜빡임), 차량 녹색 16.0
+    xsig: { yellowAt: 0.5, redAt: 2.0, pedOn: 5.0, pedFlash: 12.0, pedOff: 15.0, greenAt: 16.0 },
     player: { s: 0, v: 13.9, x: 5.25 },   // 시속 50km
     // 1차로 버스: 정지선에 앞을 맞춰 서 있고, 녹색불이 돼도 출발하지 않는다
     truck: { type: 'bus', label: '버스', parked: true, s: 109.35, x: 1.75, up: 0, flat: 0, down: 0, mass: 10, hl: 5.6, hw: 1.25, height: 3.2 },
@@ -761,8 +761,8 @@ const SCENARIOS = [
       { label: '보행자 4', s: 120.9, x0: -12.5, xEnd: 12.5, dir: 1, v: 2.0, startAt: 5.5, scale: 1, stay: true },
       { label: '보행자 5', s: 119.4, x0: -12.9, xEnd: 12.9, dir: 1, v: 1.9, startAt: 6.2, scale: 1, stay: true },
       { label: '보행자 6', s: 120.3, x0: -13.2, xEnd: 13.2, dir: 1, v: 2.2, startAt: 7.0, scale: 1, stay: true },
-      // 늦게 뛰어드는 사람: 맞은편 인도에서 14초에 뛰기 시작해 녹색불 1초 뒤(약 20초) 버스 앞을 지나 내 차로로 들어온다
-      { label: '뛰어든 사람', title: '신호 바뀐 뒤 뛰어든 보행자', s: 120.6, x0: -13.0, xEnd: 14.0, dir: 1, v: 4.5, startAt: 14.0, scale: 1, stay: true, cap: '버스 앞으로 사람이 뛰어듭니다.' },
+      // 늦게 뛰어드는 사람: 맞은편 인도에서 15초에 뛰기 시작해 녹색불 1초 뒤(약 20초) 버스 앞을 지나 내 차로로 들어온다
+      { label: '뛰어든 사람', title: '신호 바뀐 뒤 뛰어든 보행자', s: 120.6, x0: -13.0, xEnd: 14.0, dir: 1, v: 4.5, startAt: 15.0, scale: 1, stay: true, cap: '버스 앞으로 사람이 뛰어듭니다.' },
     ],
     capPedSeen: true,
     pedTitle: '신호 대기 뒤 횡단보도 사고',
