@@ -1,4 +1,6 @@
 <!doctype html>
+<html lang="ko">
+<head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#12161c">
@@ -271,6 +273,8 @@ button.card:hover, button.card:focus-visible { border-color: var(--paint); trans
   #caption { top: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); width: min(480px, calc(100% - 32px)); padding: 8px 12px; font-size: 14px; line-height: 1.45; }
 }
 </style>
+</head>
+<body>
 
 <div id="app">
   <canvas id="gl"></canvas>
@@ -3927,3 +3931,5 @@ function loop(now) {
 requestAnimationFrame(loop);
 })();
 </script>
+</body>
+</html>
