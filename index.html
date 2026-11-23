@@ -800,12 +800,12 @@ const SCENARIOS = [
   {
     id: '12', title: '커브길 추월', ready: true,
     info: '국도 왕복 2차로 · 오후 6시',
-    mission: { time: 70 },
+    mission: { time: 50 },
     // 짐 실은 소형 트럭 세 대가 시속 30km로 간다. 따라만 가면 시간 안에 못 들어간다 (추월해야 한다).
     // 1) 직선(점선): 트럭 1 추월 안전  2) 완만한 커브(시야 트임, 점선): 맞은편 차 한 대가 지나간 뒤 트럭 2 추월 안전
     // 3) 산에 가린 커브 세 개가 이어지는 구간(510~1000m, 두 줄 실선, 앞지르기 금지): 트럭 3. 맞은편 차가 약 3초 간격으로 줄지어 온다 → 여기서 추월하면 정면충돌
     // 4) 커브 뒤 직선(1000~1170m, 점선): 맞은편 차가 다 지나가 비어 있다. 여기서 추월하면 시간 안에 GOAL
-    road: { type: 'hill2', half: 3.5, flat: 6, xMin: -2.7, xMax: 2.7, hillStart: 1e6, hillEnd: 1e6 + 1, crest: 1e6, H: 0, zoneStart: 510, zoneEnd: 1000, goal: 970,
+    road: { type: 'hill2', half: 3.5, flat: 6, xMin: -2.7, xMax: 2.7, hillStart: 1e6, hillEnd: 1e6 + 1, crest: 1e6, H: 0, zoneStart: 510, zoneEnd: 1000, goal: 770,
       curves: [{ s0: 250, len: 150, r: 400, open: true }, { s0: 510, len: 150, r: -170 }, { s0: 680, len: 150, r: 170 }, { s0: 850, len: 150, r: -170 }],   // open: 산 없이 트인 커브
       cutHill: 14 },
     player: { s: 0, v: 19.4, x: 1.75, vmax: 33.33 },   // 시속 70km로 출발, 최고속도 시속 120km
