@@ -746,6 +746,10 @@ const SCENARIOS = [
     oncoming: [
       // 3차로 승용차: 정지선에 서 있다가 녹색불(16초)에 출발
       { label: '3차로 차', fwd: true, s: 112.4, x: 8.75, v: 12, startAt: 16.0, acc: 4.5 },   // 빠르게 출발: 뛰어든 사람이 3차로에 닿기 전(약 2.4초 뒤) 횡단보도를 벗어난다
+      // 출발할 때 내 바로 앞 양옆(1차로·3차로)에서 같이 달리는 차: 차로를 바꾸기 어렵게 한다. 앞차(버스·3차로 차) 뒤에 따라 선다
+      { label: '1차로 차', fwd: true, follow: true, s: 14, x: 1.75, v: 13.9, color: 0x3c4a3e },
+      // 3차로 차는 녹색불 뒤에도 4초 더 정지선에 서 있다 (뛰어든 사람이 지나갈 때 그 자리를 달리지 않게)
+      { label: '3차로 차', fwd: true, follow: true, s: 11, x: 8.75, v: 13.9, color: 0x7a2a2a, stopAt: { s: 115, until: 20 } },
       // 맞은편 차로: 신호를 기다리는 차들 (서 있다)
       ...[[-1.75, 127.6], [-5.25, 128.0], [-8.75, 127.8], [-1.75, 134.5]].map(([x, s]) => ({ label: '맞은편 차', s, v: 0, x })),
     ],
@@ -2790,7 +2794,8 @@ function newRound() {
     if (o.cross) Object.assign(c, { cross: true, yaw: -Math.PI / 2 });   // 가로 도로를 오른쪽에서 왼쪽(-x)으로 달린다
     if (o.queue) Object.assign(c, { queue: o.queue, vT: o.v, v: 0 });   // 신호 대기: 서 있다가 출발
     if (o.fwd) Object.assign(c, { fwd: true, yaw: 0 });                    // 나와 같은 방향으로 달리는 차
-    if (o.follow) Object.assign(c, { follow: true, vT: o.v });   // 앞차가 느리면 따라 느려진다
+    if (o.follow) Object.assign(c, { follow: true, vT: o.v });
+    if (o.stopAt) c.stopAt = o.stopAt;   // 앞차가 느리면 따라 느려진다
     if (o.jam) c.jam = true;
     if (o.startAt != null) Object.assign(c, { go0: o.startAt, acc: o.acc || 2.5, vT: o.v, v: 0 });   // 신호 대기: 정해진 시각(녹색불)에 출발                                        // 정체 줄의 차
     if (o.uturn) { Object.assign(c, { uturn: o.uturn, u: 0, x0: c.x, yaw: 0, v1: o.v, turning: false }); addBlinker(carMeshes[c.idx]); }   // 유턴 직전 왼쪽 깜빡이
@@ -2857,6 +2862,7 @@ function followMove(c, dt) {
   for (const o of G.cars) if (o !== c && o.active && o.fwd && Math.abs(o.x - c.x) < 1.5 && o.s > c.s && o.s - c.s < gap) { gap = o.s - c.s; lv = o.v; }
   const tr = G.truck;
   if (Math.abs(SC.truck.x - c.x) < 1.5 && tr.s > c.s) { const g2 = tr.s - c.s - (SC.truck.hl - CAR_HL); if (g2 < gap) { gap = g2; lv = tr.v; } }
+  if (c.stopAt && G.t < c.stopAt.until && c.stopAt.s > c.s) { const g3 = c.stopAt.s + 7.8 - c.s; if (g3 < gap) { gap = g3; lv = 0; } }   // 정해진 시각까지 정지선에서 선다 (앞차가 떠나도)
   const want = gap === Infinity ? c.vT : clamp(lv + (gap - 10) * 0.5, 0, c.vT);
   c.v += clamp(want - c.v, -7 * dt, 2.5 * dt);
 }
