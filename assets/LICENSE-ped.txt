@@ -1,7 +1,6 @@
-assets/ped_f.glb
-- Body (Superhero_Female_FullBody: body, eyes, eyebrows) and hairstyles (Hair_Long, Hair_Buns, Hair_BuzzedFemale)
-  from "Universal Base Characters [Standard]" by Quaternius — https://quaternius.com
-- Animations (Walk_Loop, Idle_Loop, Jog_Fwd_Loop, Death01) from "Universal Animation Library [Standard]" by Quaternius
-License (both packs): CC0 1.0 Universal (Public Domain Dedication) — https://creativecommons.org/publicdomain/zero/1.0/
-Modified for this game: textures and texture coordinates removed, constant animation tracks removed,
-animations retargeted by bone name, hair vertices moved into head-bone space.
+assets/ped.glb
+Mannequin model and animations (Walk_Loop, Idle_Loop, Jog_Fwd_Loop, Death01) from the
+"Universal Animation Library [Standard]" by Quaternius — https://quaternius.com
+License: CC0 1.0 Universal (Public Domain Dedication) — https://creativecommons.org/publicdomain/zero/1.0/
+Reduced for this game: only the mannequin mesh and four clips kept, texture coordinates and constant
+(scale / non-root translation) animation tracks removed.
