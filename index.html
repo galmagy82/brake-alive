@@ -3219,7 +3219,7 @@ function startReplay() {
   const end = G.end, evs = G.events;
   let tStart, tEnd;
   if (end.kind === 'crash') {
-    tEnd = end.t + CR_DUR;   // 충돌 이후 장면(연쇄 충돌 포함)까지 보여 준다
+    tEnd = end.t + 2.5;   // 충돌 이후 장면(연쇄 충돌 포함)을 2.5초 보여 준다 (사용자: 결과까지 너무 길다)
     const ov = evs.filter(e => e.type === 'overtake' && e.t <= end.t).pop();
     const anchor = ov ? ov.t : end.t - 6;
     tStart = Math.max(0, Math.min(anchor - 2.5, end.t - 5), end.t - 16);
@@ -3243,11 +3243,11 @@ function replayUpdate(dt) {
   if (RP.pause > 0) { RP.pause -= dt; if (RP.pause <= 0) show('caption', false); }
   else if (RP.after > 0) { RP.after -= dt; if (RP.after <= 0) { endReplay(); return; } }
   else {
-    const next = RP.t + dt * 0.5;
+    const next = RP.t + dt * (G.end.kind === 'crash' && RP.t >= G.end.t ? 1 : 0.5);   // 충돌 전은 0.5배로 자세히, 충돌 뒤는 보통 속도
     const e = RP.events.find(x => !x.done && x.t <= next);
     if (e) { e.done = true; RP.t = e.t; const c = captionFor(e); if (c) { $('caption').textContent = c; show('caption', false); void $('caption').offsetWidth; show('caption', true); RP.pause = 1.6 + c.length * 0.045; } }
     else RP.t = next;
-    if (RP.t >= RP.end && RP.pause <= 0) { RP.t = RP.end; RP.after = 1.2; }
+    if (RP.t >= RP.end && RP.pause <= 0) { RP.t = RP.end; RP.after = 0.6; }
   }
   const f = frameAt(RP.t), C = G.ch, inCrash = !!(C && RP.t >= C.t0);
   drawWorld(f, true);
