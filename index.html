@@ -2836,7 +2836,9 @@ function crash(type, car) {
   if (type === 'ped') { G.ch.shakeT = 0; hitPeds(G.ch.byId.me); pushChainFrame(); }
   state = 'crashing';
   const fl = $('flash'); fl.style.transition = 'none'; fl.style.opacity = '0.9'; void fl.offsetWidth; fl.style.transition = 'opacity .45s ease-out'; fl.style.opacity = '0';
-  drawCracks();
+  // 깨진 정도: 차 충돌은 내 차가 받은 충격(Δv), 보행자는 내 차 속도. 시속 10km → 0, 80km 이상 → 1
+  const meB = G.ch.byId.me, hitKmh = type === 'ped' || !meB.impacts.length ? p.v * 3.6 : meB.impacts[0].dv * 3.6;
+  drawCracks(clamp((hitKmh - 10) / 70, 0, 1));
 }
 // 정면충돌 Δv(km/h)에 따른 사망 확률. Ayuningtyas 외(2026) 전체 자료 모델
 // (1%: 23.3, 5%: 51.3, 10%: 64.0 km/h, OR 1.06/km/h)에 맞춘 로지스틱 곡선.
@@ -2916,11 +2918,12 @@ function crashUpdate(dt) {
 }
 // 앞유리 금(새 모습): 접합유리 거미줄 깨짐. 가운데는 하얗게 바스러지고, 금은 가운데가 굵고 끝으로 가늘며 가지를 친다.
 // 밝은 선 + 어두운 그림자 두 겹으로 유리 단면의 입체감, 충격점 가까이 촘촘한 동심원 금, 짧은 반짝임
-function drawCracks() {
+// sev: 사고 크기 0(약함)~1(심함). 차 충돌은 내 차가 받은 충격(Δv), 보행자는 내 차 속도로 정한다 (crash()에서 계산)
+function drawCracks(sev) {
   if (LOOK_OLD) return drawCracksOld();
   const cv = $('cracks'), dpr = Math.min(window.devicePixelRatio || 1, 2), W = innerWidth, H = innerHeight;
   cv.width = W * dpr; cv.height = H * dpr; const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
-  const r = rng(Math.floor(G.t * 977)), cx = W * (0.38 + r() * 0.24), cy = H * (0.28 + r() * 0.18), R0 = Math.hypot(W, H);
+  const K = clamp(sev ?? 0.6, 0, 1), r = rng(Math.floor(G.t * 977)), R0 = Math.hypot(W, H);
   g.lineJoin = 'round'; g.lineCap = 'round';
   // 금 한 줄: 점 목록을 따라 굵기가 줄어들며 그림자·밝은 선 두 겹
   const stroke = (pts, w0, w1, alpha) => {
@@ -2932,41 +2935,50 @@ function drawCracks() {
   };
   // 금 경로: 거의 직선이고, 가끔 한 번씩 각지게 꺾인다 (구불구불한 머리카락처럼 보이지 않게)
   const walk = (x, y, a, len, step, wig) => { const pts = [[x, y]]; for (let d = 0; d < len; d += step) { a += (r() - 0.5) * wig + (r() < 0.14 ? (r() - 0.5) * 0.5 : 0); const st = step * (0.7 + r() * 0.6); x += Math.cos(a) * st; y += Math.sin(a) * st; pts.push([x, y]); } return pts; };
-  // 1) 뻗어 나가는 금 + 가지
-  const N = 22, rays = [];
-  for (let i = 0; i < N; i++) {
-    // 길이: 대부분 짧게(화면 대각선의 12~35%), 4줄 정도만 길게(최대 55%)
-    const a0 = (i / N) * Math.PI * 2 + (r() - 0.5) * 0.25, len = R0 * (r() < 0.18 ? 0.35 + r() * 0.2 : 0.12 + r() * 0.23), pts = walk(cx, cy, a0, len, 30, 0.06);
-    rays.push(pts); stroke(pts, 2.6, 0.5, 1);
-    for (let k = 3; k < pts.length - 2; k++) if (r() < 0.1) {   // 가지
-      const [bx, by] = pts[k], ba = Math.atan2(by - cy, bx - cx) + (r() < 0.5 ? -1 : 1) * (0.35 + r() * 0.45);
-      stroke(walk(bx, by, ba, len * (0.1 + r() * 0.18), 22, 0.05), 1.2, 0.35, 0.8);   // 짧은 직선 가지
+  // 충격점 하나의 거미줄 금. k: 이 충격점의 세기 0~1
+  const web = (cx, cy, k) => {
+    // 1) 뻗어 나가는 금 + 가지: 세기에 따라 8~32줄, 길이 0.4~1.4배, 가지 3~18%
+    const N = Math.round(8 + 24 * k), lm = 0.4 + k, rays = [];
+    for (let i = 0; i < N; i++) {
+      const a0 = (i / N) * Math.PI * 2 + (r() - 0.5) * 0.25, len = R0 * lm * (r() < 0.18 ? 0.35 + r() * 0.2 : 0.12 + r() * 0.23), pts = walk(cx, cy, a0, len, 30, 0.06);
+      rays.push(pts); stroke(pts, 1.6 + 1.4 * k, 0.5, 1);
+      for (let j = 3; j < pts.length - 2; j++) if (r() < 0.03 + 0.15 * k) {   // 짧은 직선 가지
+        const [bx, by] = pts[j], ba = Math.atan2(by - cy, bx - cx) + (r() < 0.5 ? -1 : 1) * (0.35 + r() * 0.45);
+        stroke(walk(bx, by, ba, len * (0.1 + r() * 0.18), 22, 0.05), 1.2, 0.35, 0.8);
+      }
     }
+    // 2) 동심원 금: 두 금 사이를 직선으로 이은 다각형 그물. 세기가 클수록 넓고 빠짐없이
+    const at = (pts, rad) => { for (const p of pts) if (Math.hypot(p[0] - cx, p[1] - cy) >= rad) return p; return null; };
+    for (let rad = 16, j = 0; rad < R0 * 0.42 * (0.3 + 0.9 * k); rad *= 1.42, j++) {
+      rays.forEach((pts, i) => {
+        if (r() < 0.12 + (1 - k) * 0.25 + j * 0.08) return;
+        const a = at(pts, rad * (0.92 + r() * 0.16)), b = at(rays[(i + 1) % N], rad * (0.92 + r() * 0.16)); if (!a || !b) return;
+        const mx = (a[0] + b[0]) / 2 + (r() - 0.5) * 3, my = (a[1] + b[1]) / 2 + (r() - 0.5) * 3;
+        stroke([a, [mx, my], b], Math.max(0.5, 1.5 - j * 0.18), Math.max(0.4, 1.2 - j * 0.15), 0.85);
+      });
+    }
+    // 3) 충격점: 하얗게 바스러진 조각 (세기에 따라 20~120개, 반지름 12~42px) + 뿌연 빛
+    const cr = 12 + 30 * k;
+    for (let i = 0, n = Math.round(20 + 100 * k); i < n; i++) {
+      const d = Math.pow(r(), 1.6) * cr, a = r() * Math.PI * 2, x = cx + Math.cos(a) * d, y = cy + Math.sin(a) * d, s0 = 2 + r() * 5;
+      g.fillStyle = `rgba(240,245,250,${0.15 + r() * 0.35})`; g.beginPath();
+      for (let v = 0; v < 3; v++) { const va = r() * Math.PI * 2; g.lineTo(x + Math.cos(va) * s0, y + Math.sin(va) * s0); } g.closePath(); g.fill();
+    }
+    const gR = cr * 1.5, gr = g.createRadialGradient(cx, cy, 0, cx, cy, gR); gr.addColorStop(0, 'rgba(242,246,250,.6)'); gr.addColorStop(0.5, 'rgba(242,246,250,.2)'); gr.addColorStop(1, 'rgba(242,246,250,0)');
+    g.fillStyle = gr; g.fillRect(cx - gR, cy - gR, gR * 2, gR * 2);
+    // 4) 반짝임
+    g.save(); g.shadowColor = 'rgba(255,255,255,.9)'; g.shadowBlur = 6; g.strokeStyle = 'rgba(255,255,255,.95)'; g.lineWidth = 1.6;
+    for (let i = 0, n = Math.round(3 + 6 * k); i < n; i++) { const pts = rays[Math.floor(r() * N)], j = 1 + Math.floor(r() * Math.min(6, pts.length - 2)); if (!pts[j + 1]) continue;
+      g.beginPath(); g.moveTo(pts[j][0], pts[j][1]); g.lineTo(pts[j + 1][0], pts[j + 1][1]); g.stroke(); }
+    g.restore();
+  };
+  const cx = W * (0.38 + r() * 0.24), cy = H * (0.28 + r() * 0.18);
+  if (K > 0.7) {   // 심한 충돌: 유리 전체가 뿌옇게 + 다른 곳에 두 번째 충격점
+    const hz = (K - 0.7) / 0.3, hg = g.createRadialGradient(cx, cy, 0, cx, cy, R0 * 0.7);
+    hg.addColorStop(0, `rgba(225,231,238,${0.1 + 0.18 * hz})`); hg.addColorStop(1, `rgba(225,231,238,${0.04 + 0.08 * hz})`); g.fillStyle = hg; g.fillRect(0, 0, W, H);
+    const side = cx < W / 2 ? 1 : -1; web(cx + side * W * (0.22 + r() * 0.12), cy + H * (0.12 + r() * 0.2), K * 0.55);
   }
-  // 2) 동심원 금: 이웃한 두 금의 같은 거리 지점을 들쭉날쭉하게 잇는다 (가까울수록 촘촘하고 빠짐없이)
-  const at = (pts, rad) => { for (const p of pts) if (Math.hypot(p[0] - cx, p[1] - cy) >= rad) return p; return null; };
-  for (let rad = 16, k = 0; rad < R0 * 0.42; rad *= 1.42, k++) {
-    rays.forEach((pts, i) => {
-      if (r() < 0.12 + k * 0.08) return;
-      const a = at(pts, rad * (0.92 + r() * 0.16)), b = at(rays[(i + 1) % N], rad * (0.92 + r() * 0.16)); if (!a || !b) return;
-      // 두 금 사이를 직선으로 (가운데 아주 작은 꺾임만) → 거미줄 같은 다각형 그물
-      const mx = (a[0] + b[0]) / 2 + (r() - 0.5) * 3, my = (a[1] + b[1]) / 2 + (r() - 0.5) * 3;
-      stroke([a, [mx, my], b], Math.max(0.5, 1.5 - k * 0.18), Math.max(0.4, 1.2 - k * 0.15), 0.85);
-    });
-  }
-  // 3) 충격점: 하얗게 바스러진 작은 조각들 + 뿌연 빛
-  for (let i = 0; i < 70; i++) {
-    const d = Math.pow(r(), 1.6) * 30, a = r() * Math.PI * 2, x = cx + Math.cos(a) * d, y = cy + Math.sin(a) * d, s0 = 2 + r() * 5;
-    g.fillStyle = `rgba(240,245,250,${0.15 + r() * 0.35})`; g.beginPath();
-    for (let v = 0; v < 3; v++) { const va = r() * Math.PI * 2; g.lineTo(x + Math.cos(va) * s0, y + Math.sin(va) * s0); } g.closePath(); g.fill();
-  }
-  const gr = g.createRadialGradient(cx, cy, 0, cx, cy, 46); gr.addColorStop(0, 'rgba(242,246,250,.6)'); gr.addColorStop(0.5, 'rgba(242,246,250,.2)'); gr.addColorStop(1, 'rgba(242,246,250,0)');
-  g.fillStyle = gr; g.fillRect(cx - 46, cy - 46, 92, 92);
-  // 4) 반짝임: 금 몇 군데에 짧고 밝은 빛
-  g.save(); g.shadowColor = 'rgba(255,255,255,.9)'; g.shadowBlur = 6; g.strokeStyle = 'rgba(255,255,255,.95)'; g.lineWidth = 1.6;
-  for (let i = 0; i < 7; i++) { const pts = rays[Math.floor(r() * N)], k = 1 + Math.floor(r() * Math.min(6, pts.length - 2)); if (!pts[k + 1]) continue;
-    g.beginPath(); g.moveTo(pts[k][0], pts[k][1]); g.lineTo(pts[k + 1][0], pts[k + 1][1]); g.stroke(); }
-  g.restore();
+  web(cx, cy, K);
   cv.hidden = false;
 }
 function drawCracksOld() {   // 예전 금 (?look=old)
