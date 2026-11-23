@@ -3563,7 +3563,7 @@ function startReplay() {
   RP = { t: tStart, start: tStart, end: tEnd, events: list, pause: 0, after: 0, cam: null };
   ['crash', 'arrive', 'result'].forEach(id => show(id, false));
   show('replayUI', true); show('caption', false); show('cockpit', false); canvas.classList.remove('dead');
-  $('capL').textContent = SC.replay === 'plan' ? (R.cutHill && R.curves ? '위에서 본 도로 · 어두운 곳: 운전석에서 산에 가려 안 보이는 곳' : SC.sightLines === false ? '위에서 본 도로' : '위에서 본 도로 · 운전석 시야') : '옆에서 본 도로 · 운전석 시야선';
+  $('capL').textContent = SC.replay === 'plan' ? (R.cutHill && R.curves ? '위에서 본 도로(실제 모양) · 운전석 시야선' : SC.sightLines === false ? '위에서 본 도로' : '위에서 본 도로 · 운전석 시야') : '옆에서 본 도로 · 운전석 시야선';
   $('capR').textContent = SC.replay === 'plan' ? '' : '높이 4배 과장';
   show('cracks', false); hood.visible = false; state = 'replay'; resizeProfile();
 }
@@ -3652,21 +3652,92 @@ function toRoadSX(wx, wz, sg) {
   for (let i = 0; i < 3; i++) { const c = cw(s); s += (wx - c.cx) * Math.sin(c.t) - (wz - c.cz) * Math.cos(c.t); }
   const c = cw(s); return [s, (wx - c.cx) * Math.cos(c.t) + (wz - c.cz) * Math.sin(c.t)];
 }
-function planHidden(f, s0, span, k, HW, vx, X, Y) {
-  const E = wpos(f.ps, f.px + SEAT, 0, _pE), ey = h(f.ps) + EYE;
-  pctx.fillStyle = 'rgba(6,8,12,.6)';
-  for (let ss = Math.max(Math.floor(f.ps) + 4, Math.floor(s0)); ss < s0 + span; ss += 2) {
-    for (let xx = -HW - 3; xx < HW + 3; xx += 1) {
-      const T = wpos(ss + 1, xx + 0.5, 0, _pT), ty = h(ss + 1) + 1.0; let hid = false;
-      for (let j = 1; j < 16 && !hid; j++) {
-        const l = j / 16, [s2, x2] = toRoadSX(E.x + (T.x - E.x) * l, E.z + (T.z - E.z) * l, f.ps + (ss + 1 - f.ps) * l);
-        if (groundY(s2, x2) > ey + (ty - ey) * l) hid = true;
-      }
-      if (hid) pctx.fillRect(X(ss), Y(xx), 2 * k + 0.5, vx + 0.5);
+// 굽은 국도(10, 12) 평면도: 곧게 펴지 않고 위에서 내려다본 실제 모양 그대로 그린다 (01번 옆모습처럼 곧은 시야선을 긋기 위해).
+// 화면 가로축 = 내 눈에서 70m 앞 도로 가운데를 향하는 방향. 눈은 왼쪽에서 15m, 오른쪽(내 차로 쪽)이 화면 아래
+// 커브 안쪽 산은 녹색, 운전석 눈에서 산 모서리를 스치는 곧은 시야선(노란 점선)과, 그 너머 산에 가려 안 보이는 도로(어둡게)를 보인다
+const _cE = new THREE.Vector3(), _cA = new THREE.Vector3(), _cP = new THREE.Vector3();
+function drawPlanCurve(f) {
+  const W = pc.clientWidth, H = pc.clientHeight; if (!W) return;
+  const HW = R.half, F = R.flat || 6, es = f.ps, ex = f.px + SEAT;
+  // 가로축은 보이는 구간 끝(약 0.85 지점) 도로 가운데를 향하고, 세로는 보이는 도로가 화면 가운데 오도록 맞춘다 (휘어진 길이 위아래로 벗어나지 않게)
+  const k = Math.min(W / 110, H / 30), back = 15, ahead = W / k - back;
+  const E = wpos(es, ex, 0, _cE).clone(), A = wpos(es + ahead * 0.85, 0, 0, _cA);
+  let ux = A.x - E.x, uz = A.z - E.z; const ul = Math.hypot(ux, uz) || 1; ux /= ul; uz /= ul;
+  const vx_ = -uz, vz_ = ux;
+  let lo = Infinity, hi = -Infinity;
+  for (let s = es - back; s <= es + ahead; s += 5) { const w = wpos(s, 0, 0, _cA), l = (w.x - E.x) * vx_ + (w.z - E.z) * vz_; lo = Math.min(lo, l); hi = Math.max(hi, l); }
+  const mid = (lo + hi) / 2;
+  const scr = (wx, wz) => [((wx - E.x) * ux + (wz - E.z) * uz + back) * k, H / 2 + ((wx - E.x) * vx_ + (wz - E.z) * vz_ - mid) * k];
+  const P = (s, x) => { const w = wpos(s, x, 0, _cP); return scr(w.x, w.z); };
+  const sA = es - back - 5, sB = es + W / k;
+  const band = (x0, x1, color, step, alphaOf) => {
+    for (let s = Math.floor(sA); s < sB; s += step) {
+      const a = alphaOf ? alphaOf(s) : 1; if (a <= 0.02) continue;
+      const X0 = typeof x0 === 'function' ? x0(s) : x0, X1 = typeof x1 === 'function' ? x1(s) : x1, X0b = typeof x0 === 'function' ? x0(s + step) : x0, X1b = typeof x1 === 'function' ? x1(s + step) : x1;
+      const q = [P(s, X0), P(s, X1), P(s + step + 0.3, X1b), P(s + step + 0.3, X0b)];
+      pctx.fillStyle = typeof color === 'function' ? color(a) : color; pctx.beginPath(); q.forEach((p, i) => i ? pctx.lineTo(p[0], p[1]) : pctx.moveTo(p[0], p[1])); pctx.closePath(); pctx.fill();
+    }
+  };
+  const line = (x, color, width, dash, s0, s1) => {
+    pctx.strokeStyle = color; pctx.lineWidth = width; pctx.setLineDash(dash || []); pctx.beginPath();
+    for (let s = Math.max(sA, s0 ?? sA), i = 0; s <= Math.min(sB, s1 ?? sB); s += 2, i++) { const p = P(s, x); i ? pctx.lineTo(p[0], p[1]) : pctx.moveTo(p[0], p[1]); }
+    pctx.stroke(); pctx.setLineDash([]);
+  };
+  pctx.clearRect(0, 0, W, H);
+  pctx.fillStyle = '#1d2a22'; pctx.fillRect(0, 0, W, H);                                               // 들판
+  // 커브 안쪽 산: 도로 가장자리 밖으로 녹색 (커브가 급할수록 진하게)
+  const hillA = s => Math.min(1, Math.abs(curvNear(s)) * 170);
+  band(s => Math.sign(curvNear(s) || 1) * (HW + 0.3), s => Math.sign(curvNear(s) || 1) * (HW + 40), a => `rgba(46,120,64,${0.9 * a})`, 2, hillA);
+  band(-HW - 1.5, HW + 1.5, '#3a3f46', 2);                                                              // 갓길
+  band(-HW, HW, '#2a313c', 2);                                                                          // 도로
+  // 중앙선: 앞지르기 금지 구간은 두 줄 실선, 그 밖은 점선
+  line(0, 'rgba(242,183,5,.9)', 1.5, [6, 6]);
+  line(-0.18, 'rgba(242,183,5,.95)', 1, null, R.zoneStart, R.zoneEnd); line(0.18, 'rgba(242,183,5,.95)', 1, null, R.zoneStart, R.zoneEnd);
+  [-HW, HW].forEach(x => line(x, 'rgba(216,216,208,.5)', 1));
+  if (R.goal > sA && R.goal < sB) { const a = P(R.goal, -HW), b = P(R.goal, HW); pctx.strokeStyle = '#f2b705'; pctx.lineWidth = 2; pctx.beginPath(); pctx.moveTo(a[0], a[1]); pctx.lineTo(b[0], b[1]); pctx.stroke(); }
+  // 산에 가려 안 보이는 도로: 눈에서 각 칸(2m × 1m, 높이 1m)까지 곧은 선이 땅(산)에 막히면 어둡게
+  const ey = h(es) + EYE; let anyHidden = false;
+  pctx.fillStyle = 'rgba(6,8,12,.62)';
+  for (let ss = Math.floor(es) + 4; ss < sB; ss += 2) for (let xx = -HW - 1.5; xx < HW + 1.5; xx += 1) {
+    const T = wpos(ss + 1, xx + 0.5, 0, _pT), ty = h(ss + 1) + 1.0; let hid = false;
+    for (let j = 1; j < 16 && !hid; j++) { const l = j / 16, [s2, x2] = toRoadSX(E.x + (T.x - E.x) * l, E.z + (T.z - E.z) * l, es + (ss + 1 - es) * l); if (groundY(s2, x2) > ey + (ty - ey) * l) hid = true; }
+    if (hid) { anyHidden = true; const q = [P(ss, xx), P(ss, xx + 1), P(ss + 2.2, xx + 1), P(ss + 2.2, xx)]; pctx.beginPath(); q.forEach((p, i) => i ? pctx.lineTo(p[0], p[1]) : pctx.moveTo(p[0], p[1])); pctx.closePath(); pctx.fill(); }
+  }
+  // 시야선: 커브 안쪽 산 모서리(땅이 눈높이를 넘기 시작하는 곳) 중, 내 눈에서 볼 때 가장 바깥쪽으로 보이는 점을 스치는 곧은 선
+  const kc0 = curvNear(es + 40) || curvNear(es + 80) || curvNear(es + 120);
+  if (kc0) {
+    const sg = Math.sign(kc0); let best = null, bestAng = Infinity;
+    for (let s = es + 5; s < es + 260; s += 2) {
+      if (Math.sign(curvNear(s)) !== sg) continue;
+      let xe = null; for (let x = HW; x < HW + 20; x += 0.25) if (groundY(s, sg * x) > ey) { xe = sg * x; break; }
+      if (xe == null) continue;
+      const w = wpos(s, xe, 0, _cP), dx = w.x - E.x, dz = w.z - E.z, d = Math.hypot(dx, dz), lat = (dx * vx_ + dz * vz_) / d * sg;   // 안쪽으로 얼마나 치우쳐 보이는지
+      if (lat < bestAng) { bestAng = lat; best = [w.x, w.z, s]; }
+    }
+    if (best && best[2] < es + 255) {
+      const dx = best[0] - E.x, dz = best[1] - E.z, d = Math.hypot(dx, dz), far = 400;
+      const a = scr(E.x, E.z), b = scr(E.x + dx / d * far, E.z + dz / d * far);
+      pctx.setLineDash([5, 4]); pctx.strokeStyle = 'rgba(242,183,5,.95)'; pctx.lineWidth = 1.4; pctx.beginPath(); pctx.moveTo(a[0], a[1]); pctx.lineTo(b[0], b[1]); pctx.stroke(); pctx.setLineDash([]);
+      const t = scr(best[0], best[1]); pctx.fillStyle = '#f2b705'; pctx.beginPath(); pctx.arc(t[0], t[1], 2.5, 0, 7); pctx.fill();
     }
   }
+  // 차: 도로 좌표(s, x)의 네 모서리를 실제 위치로 옮겨 그린다
+  pctx.font = '600 11px "IBM Plex Sans KR", sans-serif'; pctx.textBaseline = 'bottom';
+  const car = (s, x, hl, hw, color, label, yaw) => {
+    if (!isFinite(s) || s < sA - 10 || s > sB + 10) return;
+    const us = Math.cos(yaw || 0), uxx = -Math.sin(yaw || 0);
+    pctx.fillStyle = color; pctx.beginPath();
+    [[1, 1], [1, -1], [-1, -1], [-1, 1]].forEach(([a, b], i) => { const p = P(s + a * hl * us - b * hw * uxx, x + a * hl * uxx + b * hw * us); i ? pctx.lineTo(p[0], p[1]) : pctx.moveTo(p[0], p[1]); });
+    pctx.closePath(); pctx.fill();
+    if (label) { const p = P(s, x + hw); pctx.textAlign = 'center'; pctx.fillText(label, p[0], p[1] + 13); pctx.textAlign = 'start'; }
+  };
+  const L = SC.truck; car(f.ts, f.tx ?? L.x, L.hl, L.hw, '#d5d0c4', '');
+  G.cars.forEach((c, i) => { const cs = f.cs[i]; if (isFinite(cs)) car(cs, f.cx ? f.cx[i] : c.x, CAR_HL, CAR_HW, c.isHazard ? '#ff5a4e' : '#8a929c', '', f.cy ? f.cy[i] : 0); });
+  car(f.ps, f.px, CAR_HL, CAR_HW, '#4c8dff', '나', f.py || 0);
+  if (anyHidden) { pctx.fillStyle = '#ff8a80'; pctx.textAlign = 'right'; pctx.textBaseline = 'top'; pctx.fillText('운전석에서 보이지 않는 구역', W - 6, 4); pctx.textAlign = 'start'; }
 }
 function drawPlan(f) {
+  if (CURVE && R.cutHill) return drawPlanCurve(f);   // 굽은 국도: 실제 모양 그대로
   const W = pc.clientWidth, H = pc.clientHeight; if (!W) return;
   const span = 110, s0 = f.ps - 15, k = W / span, HW = R.half, vx = H / (2 * HW + 6.5);
   const X = s => (s - s0) * k, Y = x => H / 2 + x * vx;   // 아래쪽이 내 방향 차로
@@ -3677,7 +3748,6 @@ function drawPlan(f) {
     const kc = curvNear(ss), a = Math.min(1, Math.abs(kc) * 170); if (a < 0.1) continue;
     pctx.fillStyle = `rgba(40,110,60,${0.85 * a})`; kc > 0 ? pctx.fillRect(X(ss), Y(HW + 0.3), 2 * k + 0.5, H - Y(HW + 0.3)) : pctx.fillRect(X(ss), 0, 2 * k + 0.5, Y(-HW - 0.3));
   }
-  if (R.cutHill && R.curves && CURVE) planHidden(f, s0, span, k, HW, vx, X, Y);   // 굽은 국도: 운전석에서 산에 가려 안 보이는 곳을 어둡게
   if (R.intersection) { pctx.fillStyle = '#2a313c'; pctx.fillRect(X(R.intersection - HW), 0, 2 * HW * k, H); }   // 가로 도로
   if (R.merge) { const M = R.merge; pctx.fillStyle = '#2a313c'; pctx.fillRect(X(M.s0), Y(HW), (M.s1 - M.s0) * k, 3.8 * vx); pctx.beginPath(); pctx.moveTo(X(M.s1), Y(HW)); pctx.lineTo(X(M.s1), Y(HW + 3.8)); pctx.lineTo(X(M.s1 + M.taper), Y(HW)); pctx.fill(); }   // 가속 차로
   sideAlleys().forEach(a => { pctx.fillStyle = '#2a313c'; a.side < 0 ? pctx.fillRect(X(a.s - a.w / 2), 0, a.w * k, Y(-HW)) : pctx.fillRect(X(a.s - a.w / 2), Y(HW), a.w * k, H - Y(HW)); });   // 갈림 골목들
