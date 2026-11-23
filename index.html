@@ -2108,7 +2108,10 @@ function makePedModel() {
   const acts = { walk: clip('Walk_Loop'), jog: clip('Jog_Fwd_Loop'), idle: clip('Idle_Loop') };
   const dummy = () => { const d = new THREE.Group(); g.add(d); return d; };   // 예전 팔다리 자리 (움직임 코드가 건드려도 아무 일 없게)
   outer.visible = false; scene.add(outer);
-  return { outer, spin, body: g, legL: dummy(), legR: dummy(), armL: dummy(), armR: dummy(), coat: { color: coat }, pants: { color: pants }, isModel: true, mixer, acts, head, cur: null, lastPh: NaN, moveT: -Infinity };
+  // 땅 뚫림 검사용 뼈와 그 부위의 두께(반지름, m): 머리·손·팔꿈치·발·무릎·골반·가슴
+  const probes = [['Head', 0.13], ['hand_l', 0.06], ['hand_r', 0.06], ['lowerarm_l', 0.06], ['lowerarm_r', 0.06], ['foot_l', 0.07], ['foot_r', 0.07], ['calf_l', 0.08], ['calf_r', 0.08], ['pelvis', 0.15], ['spine_03', 0.15]]
+    .map(([n, r]) => [model.getObjectByName(n), r]).filter(([b]) => b);
+  return { outer, spin, body: g, legL: dummy(), legR: dummy(), armL: dummy(), armR: dummy(), coat: { color: coat }, pants: { color: pants }, isModel: true, mixer, acts, head, probes, cur: null, lastPh: NaN, moveT: -Infinity };
 }
 // 모델 자세: 걷는 거리(위상)로 걷기·뛰기 동작의 시각을 정한다 (리플레이에서도 똑같이 나오도록 시간이 아니라 위상으로)
 function pedModelPose(pm, i, ph, mode, t) {
@@ -2172,6 +2175,14 @@ function hitPeds(me) {
 // 걷는 속도는 정해져 있다. run이 있는 사람은 앞차 앞에서 나온 뒤(앞차 오른쪽 끝을 지난 뒤) 정해진 시간이 지나면 뛰기 시작한다
 // 인도에 오르면 멈췄다가, 모두 올라오면 함께 인도를 따라 내 쪽(-s)으로 걷는다 (어린이도 다시 걷는 속도로)
 // 사람 발밑 바닥 높이 (차도 높이 h(s) 기준): 차도 0, 인도 0.15m, 그 바깥은 실제 땅 높이
+// 마네킹의 실제 뼈 위치로 가장 낮은 곳(부위 두께 포함)을 찾아, 바닥보다 낮으면 몸 전체를 그만큼 올린다
+const _bp = new THREE.Vector3();
+function liftAboveFloor(pm, floorY) {
+  pm.outer.updateMatrixWorld(true);
+  const sc = pm.outer.scale.x; let low = Infinity;
+  for (const [b, r] of pm.probes) { b.getWorldPosition(_bp); low = Math.min(low, _bp.y - r * sc); }
+  if (low < floorY) pm.outer.position.y += floorY - low;
+}
 function floorAt(s, x) {
   const ax = Math.abs(x), HW = R.half;
   if (R.type !== 'city4') return ax <= 4.7 ? 0 : Math.max(0, groundY(s, x) - h(s));   // 국도: 갓길까지는 도로 높이
@@ -3067,6 +3078,7 @@ function drawWorld(f, showPlayer) {
       const sw = Math.sin(qph * 4.2 / sc) * 0.5; pm.legL.rotation.x = sw; pm.legR.rotation.x = -sw; pm.armL.rotation.x = -sw * 0.8; pm.armR.rotation.x = sw * 0.8;
     }
     if (pm.isModel) pedModelPose(pm, i, qph, mode, f.t);
+    if (pm.isModel && mode > 0.5) liftAboveFloor(pm, h(qs) + floorAt(qs, qx));   // 날아가거나 쓰러진 마네킹이 땅을 뚫지 않게
   });
   if (G.peds.some(q => q.bike) && !bikeMesh) bikeMesh = makeBike();
   if (bikeMesh) {   // 자전거: 타고 있을 때는 서 있고, 부딪힌 뒤에는 옆으로 쓰러져 있다
