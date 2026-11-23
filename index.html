@@ -2847,6 +2847,20 @@ function drawNav(ps, px) {
   const k = H / 170, myY = H * 0.8, Y = s => myY - (s - ps) * k, cx = W / 2, RW = R.type === 'city4' ? 30 : R.type === 'alley' ? 12 : 20;
   const X = x => cx + x / R.half * RW / 2;
   g.fillStyle = '#18212b'; g.fillRect(0, 0, W, H);
+  const TP = G.p && G.p.path;
+  if (TP && !TP.done) {   // 우회전 전: 지금 달리는 가로 도로를 위로 세운 지도. 앞 교차로에서 경로가 오른쪽으로 꺾여 큰길로 이어진다
+    const toTurn = Math.max(0, TP.approach - G.p.u), yM = myY - (toTurn + TP.R) * k - RW / 2, road = '#46525f', lane = cx + RW / 4;
+    g.fillStyle = '#1e2934';   // 길가 블록
+    for (let b = -2; b < 6; b++) { const y = myY - ((G.p.u % 40) + b * 40) * k; g.fillRect(6, y - 26 * k, cx - RW / 2 - 12, 26 * k * 1.1); g.fillRect(cx + RW / 2 + 6, y - 26 * k, cx - RW / 2 - 12, 26 * k * 1.1); }
+    g.fillStyle = road; g.fillRect(cx - RW / 2, yM, RW, H - yM); g.fillRect(0, yM - RW / 2, W, RW);   // 가로 도로(세로) + 큰길(가로)
+    g.fillStyle = '#f2b705'; g.fillRect(cx - 0.75, yM + RW / 2, 1.5, H); g.fillRect(0, yM - 0.75, cx - RW / 2, 1.5); g.fillRect(cx + RW / 2, yM - 0.75, W, 1.5);   // 중앙선
+    g.strokeStyle = 'rgba(70,150,255,.95)'; g.lineWidth = 4; g.lineCap = 'round'; g.lineJoin = 'round';   // 경로: 위로 가다 교차로에서 오른쪽
+    g.beginPath(); g.moveTo(lane, myY + 10); g.lineTo(lane, yM + RW / 4); g.lineTo(W + 4, yM + RW / 4); g.stroke(); g.lineCap = 'butt';
+    g.beginPath(); g.moveTo(lane, myY - 8); g.lineTo(lane + 6, myY + 6); g.lineTo(lane, myY + 3); g.lineTo(lane - 6, myY + 6); g.closePath();   // 내 위치
+    g.fillStyle = '#fff'; g.fill(); g.lineWidth = 1.5; g.strokeStyle = '#1f5fc4'; g.stroke();
+    document.querySelector('.nav-turn').textContent = '↱'; $('navDist').textContent = Math.round(toTurn) + 'm'; $('navText').textContent = '교차로에서 우회전';
+    return;
+  }
   g.fillStyle = '#1e2934';   // 길가 블록
   for (let b = Math.floor((ps - 60) / 40) * 40; b < ps + 200; b += 40) { const y = Y(b + 34); g.fillRect(6, y, cx - RW / 2 - 12, 26 * k * 1.1); g.fillRect(cx + RW / 2 + 6, y, cx - RW / 2 - 12, 26 * k * 1.1); }
   const road = '#46525f';
