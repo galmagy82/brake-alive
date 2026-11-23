@@ -309,7 +309,7 @@ button.card:hover, button.card:focus-visible { border-color: var(--paint); trans
   <section class="screen" id="title">
     <div class="title-wrap">
       <h1 class="title-logo"><span class="key">BRAKE</span><span>ALIVE</span></h1>
-      <p class="title-tag"><strong>All you need is brake</strong></p>
+      <p class="title-tag"><strong>All you need is brake</strong><span>사고 나기 딱 좋은 순간, 여기서 먼저 겪어 보세요.</span></p>
       <button class="btn" id="titleStart">시작</button>
     </div>
   </section>
@@ -677,7 +677,7 @@ const SCENARIOS = [
     truck: { type: 'truck', label: '화물차', parked: true, dir: -1, s: 115, x: -5.25, up: 0, flat: 0, down: 0, mass: 6, hl: 5, hw: 1.25, height: 3.5 },
     oncoming: [
       // 유턴 차: 맞은편 1차로를 시속 40km로 달려오다가 유턴 구간(137m)에서 시속 16km로 줄여 반지름 3.5m로 돌아 내 쪽 2차로로 들어온다
-      { label: '유턴 차', s: 192, x: -1.75, v: 11, color: 0x7a2a2a, uturn: { S0: 137, R: 3.5, vt: 4.5, dec: 2.5, v2: 12, a2: 2.0 } },
+      { label: '유턴 차', s: 192, x: -1.75, v: 11, color: 0x7a2a2a, uturn: { blink: 0, S0: 137, R: 3.5, vt: 4.5, dec: 2.5, v2: 12, a2: 2.0 } },
       // 두 번째·세 번째 유턴 차: 5초 간격 (초속 11m × 5초 = 55m씩 뒤에서 출발)
       { label: '유턴 차', s: 247, x: -1.75, v: 11, color: 0x3c4a3e, uturn: { S0: 137, R: 3.5, vt: 4.5, dec: 2.5, v2: 12, a2: 2.0 } },
       { label: '유턴 차', s: 302, x: -1.75, v: 11, color: 0xd0b04a, uturn: { S0: 137, R: 3.5, vt: 4.5, dec: 2.5, v2: 12, a2: 2.0 } },
@@ -2835,9 +2835,9 @@ function drawWorld(f, showPlayer) {
     m.outer.visible = isFinite(s) && Math.abs(s - f.ps) < CAR_FAR;
     if (m.outer.visible) placeVehicle(m, s, f.cx ? f.cx[i] : c.x, !c.fwd, f.cy ? f.cy[i] : 0);   // 같은 방향 차는 뒤집지 않는다
     const cd = damageAt('c' + i, f.t); m.inner.scale.z = (cd.front || cd.rear) ? 0.76 : 1;
-    // 깜빡이 (1.5Hz). 좌회전 차: 다 돌 때까지. 유턴 차: 유턴 바로 직전(유턴 지점 6m 전, 약 1초 전)부터 다 돌 때까지 (돌고 나면 내 쪽 차로 x > 0)
+    // 깜빡이 (1.5Hz). 좌회전 차: 다 돌 때까지. 유턴 차: 유턴 지점 blink m 전(기본 6m, 약 1초 전; 1번 차는 0 = 돌기 시작하면서)부터 다 돌 때까지
     if (m.blink) { const cy = f.cy ? f.cy[i] : 0, cxv = f.cx ? f.cx[i] : c.x;
-      const on = c.uturn ? (cxv < 0 && s - c.uturn.S0 < 6) || (cy > 0.02 && cy < Math.PI - 0.15) : cy < 1.45;
+      const on = c.uturn ? (cxv < 0 && s - c.uturn.S0 < (c.uturn.blink ?? 6)) || (cy > 0.02 && cy < Math.PI - 0.15) : cy < 1.45;
       m.blink.visible = isFinite(s) && f.t >= 0 && on && Math.floor(f.t * 3) % 2 === 0; }
   });
   pedMeshes.forEach((pm, i) => {
