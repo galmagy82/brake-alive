@@ -966,6 +966,19 @@ const ASPHALT_TEX = noiseTex(256, (x, y, n, sm) => 0.86 + (n - 0.5) * 0.22 + (sm
 const WALK_TEX = noiseTex(256, (x, y, n, sm) => ((x % 64 < 2) || (y % 64 < 2) ? 0.62 : 0.9) + (n - 0.5) * 0.1 + (sm - 0.5) * 0.12, 2);
 // 땅(풀·흙): 덩어리진 얼룩 (6m마다 반복). 색은 지형 꼭짓점 색이 정하고 이 그림은 밝기만 바꾼다
 const GROUND_TEX = noiseTex(128, (x, y, n, sm) => 0.94 + (sm - 0.5) * 0.3 + (n - 0.5) * 0.14, 6);   // 평균 밝기는 예전과 거의 같게
+// 인도 옆면: 인도 판(ribbon 조각마다 사각형 하나)의 네 가장자리에서 땅까지 내려오는 세로 면을 붙인다
+// 도로 쪽은 연석(밝은 콘크리트), 안쪽에 겹치는 면은 인도 판에 가려 보이지 않는다
+function curbFaces(walkArr) {
+  const v = [], DROP = 0.42;   // 인도 윗면(+0.15)에서 땅 아래(-0.27)까지
+  const face = (xa, ya, za, xb, yb, zb) => v.push(xa, ya, za, xb, yb, zb, xb, yb - DROP, zb, xa, ya, za, xb, yb - DROP, zb, xa, ya - DROP, za);
+  for (let i = 0; i + 17 < walkArr.length; i += 18) {
+    const q = walkArr, x0 = q[i], ya = q[i + 1], za = q[i + 2], x1 = q[i + 3], yb = q[i + 7], zb = q[i + 8];
+    face(x0, ya, za, x0, yb, zb); face(x1, ya, za, x1, yb, zb);   // 옆쪽 두 면
+    face(x0, ya, za, x1, ya, za); face(x0, yb, zb, x1, yb, zb);   // 앞뒤 두 면 (끊기는 곳의 끝면)
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3)); g.computeVertexNormals();
+  const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color: 0xa3a19b, side: THREE.DoubleSide })); world.add(m); return m;
+}
 function ribbonMesh(arr, mat) {
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(arr, 3)); g.computeVertexNormals();
   if (mat.map && mat.map.repeatM) {   // 질감 좌표: 위에서 본 위치 그대로 (질감 크기 m마다 한 번)
@@ -1280,6 +1293,7 @@ function buildRoad() {
       ribbon(white, ix - HW + 0.1, ix - 0.3, -HW - 3.4, -HW - 3.0, 0.02, 0.4);
     }
     ribbonMesh(walk, new THREE.MeshLambertMaterial({ color: 0x777674, map: WALK_TEX }));
+    if (!LOOK_OLD) curbFaces(walk);   // 인도 옆면(연석): 떠 보이지 않게
   } else {                    // 왕복 2차로 국도
     ribbon(asphalt, -320, 1720, -3.6, 3.6, 0);
     ribbon(shoulder, -320, 1720, -4.7, -3.6, -0.03); ribbon(shoulder, -320, 1720, 3.6, 4.7, -0.03);
