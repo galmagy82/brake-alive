@@ -677,7 +677,7 @@ const SCENARIOS = [
     truck: { type: 'truck', label: '화물차', parked: true, dir: -1, s: 115, x: -5.25, up: 0, flat: 0, down: 0, mass: 6, hl: 5, hw: 1.25, height: 3.5 },
     oncoming: [
       // 유턴 차: 맞은편 1차로를 시속 40km로 달려오다가 유턴 구간(137m)에서 시속 16km로 줄여 반지름 3.5m로 돌아 내 쪽 2차로로 들어온다
-      { label: '유턴 차', s: 236, x: -1.75, v: 11, color: 0x7a2a2a, uturn: { S0: 137, R: 3.5, vt: 4.5, dec: 2.5, v2: 12, a2: 2.0 } },
+      { label: '유턴 차', s: 214, x: -1.75, v: 11, color: 0x7a2a2a, uturn: { S0: 137, R: 3.5, vt: 4.5, dec: 2.5, v2: 12, a2: 2.0 } },
       // 그 뒤에서 신호를 기다리는 차들 (서 있다)
       { label: '맞은편 차', s: 118, x: -1.75, v: 0 }, { label: '맞은편 차', s: 125, x: -1.75, v: 0 },
     ],
@@ -2666,7 +2666,7 @@ function pathPose(P, u) {
 function step(dt) {
   const p = G.p, tr = G.truck, hz = G.hazard;
   const onPath = !!(p.path && !p.path.done);
-  G.prev = { s: p.s, x: p.x, ts: tr.s, bs: G.bait ? G.bait.s : undefined, cs: G.cars.map(c => c.active ? c.s : NaN), cx: G.cars.map(c => c.x) };   // 화면 보간용 직전 상태
+  G.prev = { s: p.s, x: p.x, py: p.yaw || 0, ts: tr.s, bs: G.bait ? G.bait.s : undefined, cs: G.cars.map(c => c.active ? c.s : NaN), cx: G.cars.map(c => c.x) };   // 화면 보간용 직전 상태
   G.t += dt; const t = G.t;
   // 교차로 우회전(09): 정해진 경로(가로 도로 2차로 → 타원 회전 → 큰길 2차로)를 자동으로 따라간다. 브레이크만 된다
   // 도는 곳이 가까워지면 vturn까지 저절로 줄인다 (남은 거리에 맞춘 감속, 최대 2.5m/s²)
@@ -2861,9 +2861,9 @@ function drawWorld(f, showPlayer) {
   }
   updateCrashFx(f.t, showPlayer ? null : eyeV.set(f.px + SEAT, h(f.ps) + EYE, -f.ps));
 }
-function driveCamera(dt, ps, px) {
+function driveCamera(dt, ps, px, yaw) {
   const tp = Math.atan(slope(ps + 5)) - 0.02; G.camPitch += (tp - G.camPitch) * Math.min(1, dt * 5);
-  G.yaw = G.p.yaw || 0;   // 시선은 차가 향한 쪽 (보통은 정면, 우회전 중에는 함께 돈다). 운전석 위치도 차 방향에 맞춰 돌린다
+  G.yaw = yaw ?? (G.p.yaw || 0);   // 시선은 차가 향한 쪽 (보통은 정면, 우회전 중에는 함께 돈다). 운전석 위치도 차 방향에 맞춰 돌린다
   camera.position.set(px + SEAT * Math.cos(G.yaw), h(ps) + EYE, -(ps + SEAT * Math.sin(G.yaw))); camera.rotation.set(G.camPitch, G.yaw, 0);
   if (G.curb && G.p.v > 1) { const a = 0.025 * clamp(G.p.v / 15, 0.3, 1); camera.position.y += (Math.random() - 0.5) * a; camera.rotation.z = (Math.random() - 0.5) * a * 0.3; }   // 연석에 닿으면 살짝 떨린다
 }
@@ -3612,12 +3612,13 @@ function loop(now) {
     if (state === 'drive') {
       // 계산(1/60초 간격) 사이의 위치를 보간해 모니터 주사율과 상관없이 부드럽게 그린다
       const p = G.p, a = clamp(G.acc / STEP, 0, 1), pr = G.prev;
+      // 차 방향도 위치처럼 직전 계산과 이어 붙인다 (우회전 중 화면 떨림 방지)
       const L = (o, n) => (pr && isFinite(o)) ? o + (n - o) * a : n;
       const ps = L(pr && pr.s, p.s), px = L(pr && pr.x, p.x), ts = L(pr && pr.ts, G.truck.s), bs = G.bait ? L(pr && pr.bs, G.bait.s) : undefined;
       const cs = G.cars.map((c, i) => { const n = c.active ? c.s : NaN; return isFinite(n) ? L(pr && pr.cs[i], n) : n; });
       const cx = G.cars.map((c, i) => L(pr && pr.cx[i], c.x)), cy = G.cars.map(c => c.yaw || 0);
       const pd = pedFrame();
-      drawWorld({ t: G.t, ps, px, ts, bs, cs, cx, cy, pd, bk: bikeFrame() }, false); driveCamera(dt, ps, px); updateHUD(); drawNav(ps, px); engine(p.v, true); brakeSound(keys.down, p.v); curbSound(G.curb, p.v);
+      drawWorld({ t: G.t, ps, px, ts, bs, cs, cx, cy, pd, bk: bikeFrame() }, false); driveCamera(dt, ps, px, L(pr && pr.py, p.yaw || 0)); updateHUD(); drawNav(ps, px); engine(p.v, true); brakeSound(keys.down, p.v); curbSound(G.curb, p.v);
     }
   } else if (state === 'countdown') {
     const p = G.p; G.cd -= dt;
