@@ -3563,7 +3563,7 @@ function startReplay() {
   RP = { t: tStart, start: tStart, end: tEnd, events: list, pause: 0, after: 0, cam: null };
   ['crash', 'arrive', 'result'].forEach(id => show(id, false));
   show('replayUI', true); show('caption', false); show('cockpit', false); canvas.classList.remove('dead');
-  $('capL').textContent = SC.replay === 'plan' ? (SC.sightLines === false ? '위에서 본 도로' : '위에서 본 도로 · 운전석 시야') : '옆에서 본 도로 · 운전석 시야선';
+  $('capL').textContent = SC.replay === 'plan' ? (R.cutHill && R.curves ? '위에서 본 도로 · 어두운 곳: 운전석에서 산에 가려 안 보이는 곳' : SC.sightLines === false ? '위에서 본 도로' : '위에서 본 도로 · 운전석 시야') : '옆에서 본 도로 · 운전석 시야선';
   $('capR').textContent = SC.replay === 'plan' ? '' : '높이 4배 과장';
   show('cracks', false); hood.visible = false; state = 'replay'; resizeProfile();
 }
@@ -3644,6 +3644,28 @@ function drawProfile(f) {
 }
 
 /* 위에서 본 평면도: 앞차 뒤로 생기는 '운전석에서 보이지 않는 구역'을 보여 준다 */
+// 굽은 국도 평면도: 운전석 눈에서 도로 위 각 칸(2m × 1m, 높이 1m)까지 곧게 이은 선이 산(땅)에 막히면 그 칸을 어둡게 칠한다.
+// 선 위의 점(실제 좌표)을 도로 좌표(s, x)로 되돌려 그 자리 땅 높이와 비교한다
+const _pE = new THREE.Vector3(), _pT = new THREE.Vector3();
+function toRoadSX(wx, wz, sg) {
+  let s = sg;
+  for (let i = 0; i < 3; i++) { const c = cw(s); s += (wx - c.cx) * Math.sin(c.t) - (wz - c.cz) * Math.cos(c.t); }
+  const c = cw(s); return [s, (wx - c.cx) * Math.cos(c.t) + (wz - c.cz) * Math.sin(c.t)];
+}
+function planHidden(f, s0, span, k, HW, vx, X, Y) {
+  const E = wpos(f.ps, f.px + SEAT, 0, _pE), ey = h(f.ps) + EYE;
+  pctx.fillStyle = 'rgba(6,8,12,.6)';
+  for (let ss = Math.max(Math.floor(f.ps) + 4, Math.floor(s0)); ss < s0 + span; ss += 2) {
+    for (let xx = -HW - 3; xx < HW + 3; xx += 1) {
+      const T = wpos(ss + 1, xx + 0.5, 0, _pT), ty = h(ss + 1) + 1.0; let hid = false;
+      for (let j = 1; j < 16 && !hid; j++) {
+        const l = j / 16, [s2, x2] = toRoadSX(E.x + (T.x - E.x) * l, E.z + (T.z - E.z) * l, f.ps + (ss + 1 - f.ps) * l);
+        if (groundY(s2, x2) > ey + (ty - ey) * l) hid = true;
+      }
+      if (hid) pctx.fillRect(X(ss), Y(xx), 2 * k + 0.5, vx + 0.5);
+    }
+  }
+}
 function drawPlan(f) {
   const W = pc.clientWidth, H = pc.clientHeight; if (!W) return;
   const span = 110, s0 = f.ps - 15, k = W / span, HW = R.half, vx = H / (2 * HW + 6.5);
@@ -3655,6 +3677,7 @@ function drawPlan(f) {
     const kc = curvNear(ss), a = Math.min(1, Math.abs(kc) * 170); if (a < 0.1) continue;
     pctx.fillStyle = `rgba(40,110,60,${0.85 * a})`; kc > 0 ? pctx.fillRect(X(ss), Y(HW + 0.3), 2 * k + 0.5, H - Y(HW + 0.3)) : pctx.fillRect(X(ss), 0, 2 * k + 0.5, Y(-HW - 0.3));
   }
+  if (R.cutHill && R.curves && CURVE) planHidden(f, s0, span, k, HW, vx, X, Y);   // 굽은 국도: 운전석에서 산에 가려 안 보이는 곳을 어둡게
   if (R.intersection) { pctx.fillStyle = '#2a313c'; pctx.fillRect(X(R.intersection - HW), 0, 2 * HW * k, H); }   // 가로 도로
   if (R.merge) { const M = R.merge; pctx.fillStyle = '#2a313c'; pctx.fillRect(X(M.s0), Y(HW), (M.s1 - M.s0) * k, 3.8 * vx); pctx.beginPath(); pctx.moveTo(X(M.s1), Y(HW)); pctx.lineTo(X(M.s1), Y(HW + 3.8)); pctx.lineTo(X(M.s1 + M.taper), Y(HW)); pctx.fill(); }   // 가속 차로
   sideAlleys().forEach(a => { pctx.fillStyle = '#2a313c'; a.side < 0 ? pctx.fillRect(X(a.s - a.w / 2), 0, a.w * k, Y(-HW)) : pctx.fillRect(X(a.s - a.w / 2), Y(HW), a.w * k, H - Y(HW)); });   // 갈림 골목들
