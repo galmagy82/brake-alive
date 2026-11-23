@@ -703,7 +703,7 @@ const SCENARIOS = [
     mission: { time: 35 },
     // 굽은 국도: 오른쪽 → 왼쪽 → 오른쪽 커브 (반지름 170~180m). 커브 안쪽은 비탈과 숲이라 커브 너머가 보이지 않는다.
     // 첫째·둘째 커브는 막힘이 없고, 셋째 커브를 돌자마자 차들이 줄지어 천천히(시속 15km) 가고 있다. 중앙선은 두 줄 실선
-    road: { type: 'hill2', half: 3.5, flat: 6, xMin: -2.7, xMax: 2.7, hillStart: 1e6, hillEnd: 1e6 + 1, crest: 1e6, H: 0, zoneStart: -1e4, zoneEnd: 1e4, goal: 860,
+    road: { type: 'hill2', half: 3.5, flat: 6, xMin: -2.7, xMax: 2.7, hillStart: 1e6, hillEnd: 1e6 + 1, crest: 1e6, H: 0, zoneStart: -1e4, zoneEnd: 1e4, goal: 840,
       curves: [{ s0: 150, len: 140, r: 180 }, { s0: 390, len: 140, r: -180 }, { s0: 630, len: 150, r: 170 }],
       cutHill: 14 },   // 커브 안쪽에 산(높이 14m)을 끼고 돈다: 커브 너머 도로가 산에 가려 보이지 않는다
     player: { s: 0, v: 19.4, x: 1.75 },   // 시속 70km로 출발
@@ -864,7 +864,7 @@ function buildWorld() {
   }
   if (SC.sunAhead) sun.position.set(30, 75, -2100); else sun.position.set(-420, 60, -1900);   // 07: 해 질 녘 해가 출구 정면에
   buildCurve();   // 굽은 도로면 중심선을 먼저 계산
-  world = new THREE.Group(); scene.add(world); alleyBld = alleyHide = alleyFoot = null; tunnelExit = tunnelGrp = tunnelFoot = tunnelMouth = null; envIn = null;
+  world = new THREE.Group(); scene.add(world); alleyBld = alleyHide = alleyFoot = null; tunnelExit = tunnelGrp = tunnelFoot = tunnelMouth = null; envIn = null; curveHill = null;
   buildGround(); buildRoad(); buildTrees(); buildGoal();
   if (R.type === 'city4') {
     if (R.crosswalk) { addCrosswalkSign(R.crosswalk - 4, R.half + 1.2); addCrosswalkSign(R.crosswalk + 4, -R.half - 1.2, true); }
@@ -981,6 +981,8 @@ function tunnelEnv(ps) {
 }
 
 /* 지형 */
+let HILL_OFF = false;   // 리플레이용 평평한 땅을 지을 때만 true
+let curveHill = null;   // 굽은 국도 리플레이용: { hill: 산 있는 땅, flat: 평평한 땅, foot: 산 자리 그림자, trees: 나무 }
 // 커브 근처 굽음 정도 (커브 앞뒤 50m까지 서서히 줄어든다): 안쪽 산을 커브보다 조금 넓게 두르기 위해
 function curvNear(s) {
   let best = 0;
@@ -989,7 +991,7 @@ function curvNear(s) {
 }
 function bank(s, x) {
   if (R.type === 'alley') return 0;   // 주택가: 언덕 없이 평지
-  if (R.cutHill && R.curves) {   // 굽은 국도: 커브 안쪽(x와 굽는 방향이 같은 쪽)에 산을 끼고 돈다. 도로 가장자리 1m 밖부터 8m 사이에 솟는다
+  if (R.cutHill && R.curves && !HILL_OFF) {   // 굽은 국도: 커브 안쪽(x와 굽는 방향이 같은 쪽)에 산을 끼고 돈다. 도로 가장자리 1m 밖부터 8m 사이에 솟는다
     const kc = curvNear(s), ax = Math.abs(x), F0 = R.flat || 6;
     if (kc && x * kc > 0 && ax > F0) { const u = clamp((ax - F0) / 8, 0, 1), w = Math.min(1, Math.abs(kc) * 170); var hillIn = R.cutHill * w * u * u * (3 - 2 * u); }
   }
@@ -1000,6 +1002,23 @@ function bank(s, x) {
 }
 const groundY = (s, x) => h(s) - 0.25 + bank(s, x);
 function buildGround() {
+  const hill = buildGroundMesh();
+  if (!(R.cutHill && R.curves)) return;
+  // 굽은 국도: 리플레이에서는 커브 안쪽 산을 내린 평평한 땅으로 바꾸고, 산 자리를 반투명 녹색 그림자로 보여 준다
+  HILL_OFF = true; const flat = buildGroundMesh(); HILL_OFF = false; flat.visible = false;
+  const F = R.flat || 6, v = [];
+  for (let s = -320; s < 1720; s += 4) {
+    const ka = curvNear(s), kb = curvNear(s + 4); if (Math.abs(ka) * 170 < 0.25 && Math.abs(kb) * 170 < 0.25) continue;
+    const sg = Math.sign(ka || kb), q = (ss, xx) => { HILL_OFF = true; const y = groundY(ss, xx) + 0.06; HILL_OFF = false; const w = wpos(ss, xx, y); return [w.x, w.y, w.z]; };
+    const A0 = q(s, sg * F), A1 = q(s, sg * (F + 8)), B1 = q(s + 4, sg * (F + 8)), B0 = q(s + 4, sg * F);
+    v.push(...A0, ...A1, ...B1, ...A0, ...B1, ...B0);
+  }
+  const fg = new THREE.BufferGeometry(); fg.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
+  const foot = new THREE.Mesh(fg, new THREE.MeshBasicMaterial({ color: 0x1e5a2e, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+  foot.visible = false; world.add(foot);
+  curveHill = { hill, flat, foot, trees: curveHill && curveHill.trees };
+}
+function buildGroundMesh() {
   // 굽은 도로에서는 땅을 도로에서 160m까지만 (커브 안쪽 땅이 접히지 않게, 반지름 170m 이상으로 쓴다)
   const XS = [-420, -300, -210, -150, -110, -80, -58, -42, -30, -21, -14, -9, -6, -4, -2, 0, 2, 4, 6, 9, 14, 21, 30, 42, 58, 80, 110, 150, 210, 300, 420].filter(x => !CURVE || Math.abs(x) <= 160);
   const pos = [], col = [], idx = [];
@@ -1022,7 +1041,7 @@ function buildGround() {
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
   { const M = GROUND_TEX.repeatM, uv = []; for (let i = 0; i < pos.length; i += 3) uv.push(pos[i] / M, -pos[i + 2] / M); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); }
   g.setIndex(idx); g.computeVertexNormals();
-  world.add(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true, map: GROUND_TEX, color: 0xffffff })));
+  const mesh = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true, map: GROUND_TEX, color: 0xffffff })); world.add(mesh); return mesh;
 }
 
 /* 도로와 차선 */
@@ -1464,7 +1483,8 @@ function buildTrees() {
     k++;
   }
   con.count = nc; dec.count = nd;
-  world.add(trunk, con, dec);
+  const tg = new THREE.Group(); tg.add(trunk, con, dec); world.add(tg);
+  if (curveHill) curveHill.trees = tg; else if (R.cutHill) curveHill = { trees: tg };   // 리플레이에서 숨긴다 (산을 내린 땅 위에 뜨지 않게)
   treePoles();
 }
 function buildTreesOld() {   // 예전 나무 (?look=old)
@@ -3339,6 +3359,7 @@ let alleyBld = null, alleyHide = null, alleyFoot = null;   // 골목 주택가: 
 function alleyReplayView(on) {   // 리플레이에서는 건물과 배경을 숨기고 건물 터만 보여 준다
   if (alleyBld) alleyBld.visible = !on; if (alleyHide) alleyHide.visible = !on; if (alleyFoot) alleyFoot.visible = on;
   if (tunnelGrp) tunnelGrp.visible = !on; if (tunnelFoot) tunnelFoot.visible = on;   // 터널: 벽·천장 대신 벽 자리 턱만
+  if (curveHill) { if (curveHill.hill) curveHill.hill.visible = !on; if (curveHill.flat) curveHill.flat.visible = on; if (curveHill.foot) curveHill.foot.visible = on; if (curveHill.trees) curveHill.trees.visible = !on; }   // 굽은 국도: 산을 내리고 산 자리만
 }
 function startReplay() {
   alleyReplayView(true);
@@ -3449,6 +3470,10 @@ function drawPlan(f) {
   pctx.clearRect(0, 0, W, H);
   pctx.fillStyle = '#3a3f46'; pctx.fillRect(0, Y(-HW - 3), W, 3 * vx); pctx.fillRect(0, Y(HW), W, 3 * vx);   // 보도
   pctx.fillStyle = '#2a313c'; pctx.fillRect(0, Y(-HW), W, 2 * HW * vx);                                   // 도로
+  if (R.cutHill && R.curves) for (let ss = Math.floor(s0); ss < s0 + span; ss += 2) {   // 굽은 국도: 커브 안쪽 산 자리 (짙은 녹색 띠)
+    const kc = curvNear(ss), a = Math.min(1, Math.abs(kc) * 170); if (a < 0.1) continue;
+    pctx.fillStyle = `rgba(40,110,60,${0.85 * a})`; kc > 0 ? pctx.fillRect(X(ss), Y(HW + 0.3), 2 * k + 0.5, H - Y(HW + 0.3)) : pctx.fillRect(X(ss), 0, 2 * k + 0.5, Y(-HW - 0.3));
+  }
   if (R.intersection) { pctx.fillStyle = '#2a313c'; pctx.fillRect(X(R.intersection - HW), 0, 2 * HW * k, H); }   // 가로 도로
   if (R.merge) { const M = R.merge; pctx.fillStyle = '#2a313c'; pctx.fillRect(X(M.s0), Y(HW), (M.s1 - M.s0) * k, 3.8 * vx); pctx.beginPath(); pctx.moveTo(X(M.s1), Y(HW)); pctx.lineTo(X(M.s1), Y(HW + 3.8)); pctx.lineTo(X(M.s1 + M.taper), Y(HW)); pctx.fill(); }   // 가속 차로
   sideAlleys().forEach(a => { pctx.fillStyle = '#2a313c'; a.side < 0 ? pctx.fillRect(X(a.s - a.w / 2), 0, a.w * k, Y(-HW)) : pctx.fillRect(X(a.s - a.w / 2), Y(HW), a.w * k, H - Y(HW)); });   // 갈림 골목들
