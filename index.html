@@ -1820,24 +1820,17 @@ let PED_GLTF = null;
 try {
   if (!LOOK_OLD && THREE.GLTFLoader && THREE.SkeletonUtils) new THREE.GLTFLoader().load('assets/ped.glb', g => { PED_GLTF = g; }, undefined, () => {});
 } catch (e) {}
-// 옷 색 나누기: 모델의 기본 자세(T자, 발 = 0, 키 1.83m) 위치로 부위를 가른다. 목 위·손 = 피부, 골반 아래 = 바지, 발목 아래 = 신발, 나머지 = 옷
-function pedModelMat(coat, pants) {
-  const m = new THREE.MeshLambertMaterial({ skinning: true });
-  m.userData.coat = coat; m.userData.pants = pants;
-  m.onBeforeCompile = sh => {
-    sh.uniforms.uCoat = { value: coat }; sh.uniforms.uPants = { value: pants };
-    sh.uniforms.uSkin = { value: new THREE.Color(0xd9b49a) }; sh.uniforms.uShoe = { value: new THREE.Color(0x1e1e22) };
-    sh.vertexShader = 'varying vec3 vBindPos;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vBindPos = position;');
-    sh.fragmentShader = 'uniform vec3 uCoat;\nuniform vec3 uPants;\nuniform vec3 uSkin;\nuniform vec3 uShoe;\nvarying vec3 vBindPos;\n' + sh.fragmentShader.replace('vec4 diffuseColor = vec4( diffuse, opacity );',
-      'vec3 pc = uCoat;\n  if (vBindPos.y < 0.95) pc = uPants;\n  if (vBindPos.y < 0.12) pc = uShoe;\n  if (vBindPos.y > 1.50 || abs(vBindPos.x) > 0.68) pc = uSkin;\n  vec4 diffuseColor = vec4( pc, opacity );');
-  };
-  m.customProgramCacheKey = () => 'pedModel';
-  return m;
+// 마네킹 색 (사용자 결정): 옷 색 없이 머리부터 발끝까지 무광 흰색 한 가지. 사람마다 밝기만 조금씩 달라 겹쳐도 구분된다
+// (어두운 도로·해 질 녘에서도 잘 보이도록 검은색 대신 흰색)
+let pedModelK = 0;
+function pedModelMat() {
+  const v = [0.86, 0.8, 0.9, 0.83, 0.88][pedModelK++ % 5];
+  return new THREE.MeshLambertMaterial({ color: new THREE.Color(v, v, v * 0.985), skinning: true });
 }
 function makePedModel() {
   const outer = new THREE.Group(), spin = new THREE.Group(), g = new THREE.Group();
   outer.add(spin); spin.add(g); g.position.y = -0.9;
-  const coat = new THREE.Color(0x5a6e8c), pants = new THREE.Color(0x2b2f36), mat = pedModelMat(coat, pants);
+  const coat = new THREE.Color(), pants = new THREE.Color(), mat = pedModelMat();   // coat·pants: 옷 색을 바꾸는 코드가 건드려도 영향 없는 자리
   const model = THREE.SkeletonUtils.clone(PED_GLTF.scene); model.rotation.y = Math.PI;   // 모델은 +z를 보고 있다 → 게임의 앞(-z)으로 돌린다
   model.traverse(o => { if (o.isMesh) { o.material = mat; o.frustumCulled = false; } });
   g.add(model);
