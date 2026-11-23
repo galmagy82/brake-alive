@@ -167,6 +167,10 @@ button.card:hover, button.card:focus-visible { border-color: var(--paint); trans
 .card .st { font-family: var(--f-num); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .card .st.ok { color: var(--safe); }
 .card .st.bad { color: var(--danger); }
+.card .st.bar { display: flex; gap: 2px; height: 8px; margin-top: 4px; }
+.card .st.bar i { flex: 1; background: var(--asphalt-3); border-radius: 1px; }
+.card .st.bar i.on { background: var(--safe); }
+.card .st.master { justify-self: start; margin-top: 1px; padding: 1px 8px; border: 1px solid #e2b84a; border-radius: 3px; color: #f3cf6a; background: rgba(226,184,74,.12); font-weight: 600; letter-spacing: .14em; font-size: 11px; }
 .card.soon { opacity: .45; }
 @media (prefers-reduced-motion: reduce) { button.card { transition: none; } button.card:hover { transform: none; } }
 .btn:focus-visible, .tbtn:focus-visible, input:focus-visible + span { outline: 2px solid var(--paper); outline-offset: 3px; }
@@ -3816,6 +3820,7 @@ function makeThumb(sc) {
   try { thumbs[sc.id] = canvas.toDataURL('image/jpeg', 0.75); } catch (e) {}
   camera.fov = 68; resize();
 }
+const MASTER_N = 10;   // 사고 없이 GOAL을 이만큼 통과하면 MASTER
 function renderGrid() {
   const grid = $('grid'); grid.textContent = '';
   SCENARIOS.forEach(sc => {
@@ -3828,10 +3833,11 @@ function renderGrid() {
     const st = document.createElement('span'); st.className = 'st';
     const r = records[sc.id];
     if (!sc.ready) st.textContent = '준비 중';
-    else if (r && r.best) { st.textContent = `✓ ${r.best.toFixed(1)}초`; st.classList.add('ok'); }
-    else if (r && r.crashes) { st.textContent = '✕ 사고'; st.classList.add('bad'); }
-    else if (r && r.fail) st.textContent = '시간 초과';
-    else st.textContent = '—';
+    else if (r && r.clear >= MASTER_N) { st.classList.add('master'); st.textContent = 'MASTER'; }   // 10번 통과: 막대 대신 배지
+    else {   // 통과 횟수 막대 (10칸, 통과한 만큼 녹색). 글자는 없다
+      st.classList.add('bar'); const n = r ? r.clear : 0;
+      for (let k = 0; k < MASTER_N; k++) { const c = document.createElement('i'); if (k < n) c.className = 'on'; st.appendChild(c); }
+    }
     meta.append(num, ttl, st); card.append(th, meta);
     if (sc.ready) card.addEventListener('click', () => { applyScenario(sc); showBrief(); });
     grid.appendChild(card);
