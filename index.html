@@ -3712,8 +3712,7 @@ function crashUpdate(dt) {
     G.end.injury = injuryRows();
     G.end.chain = C.impacts.length > 1;
     renderInjury($('injury'), true);
-    $('injAfter').textContent = G.end.type === 'ped' ? (G.end.injury.length > 1 ? '두 사람은 횡단보도를 건너고 있었습니다.' : '보행자는 횡단보도를 건너고 있었습니다.')
-      : '';   // 차 사고에서는 덧붙이는 문장 없음 ('맞은편 운전자는 자기 차로를…' 문장은 사용자 결정으로 뺐다)
+    $('injAfter').textContent = '';   // 덧붙이는 문장 없음 ('맞은편 운전자는…', '보행자는 횡단보도를…' 모두 사용자 결정으로 뺐다)
     $('injAfter').style.animationDelay = (0.5 + G.end.injury.length * 0.9) + 's'; $('injAfter').className = 'inj-after reveal';
     $('injNote').innerHTML = G.end.type === 'ped'
       ? '사망 확률은 차에 치인 보행자의 평균 위험으로, <a href="https://doi.org/10.1016/j.aap.2012.07.022" target="_blank" rel="noopener">Tefft(2013), Accident Analysis &amp; Prevention</a>의 충돌 속도별 추정을 따릅니다. 나이가 많을수록 같은 속도에서도 위험이 더 큽니다.'
