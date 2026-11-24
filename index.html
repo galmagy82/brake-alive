@@ -761,6 +761,7 @@ const SCENARIOS = [
     // 신호 일정(초): 차량 노란불 0.5, 빨간불 2.0, 보행자 녹색 3.0~15.0 (12.0부터 깜빡임), 차량 녹색 16.0
     xsig: { yellowAt: 0.5, redAt: 2.0, pedOn: 3.0, pedFlash: 12.0, pedOff: 15.0, greenAt: 16.0 },
     player: { s: 0, v: 8.33, x: 5.25 },   // 시속 30km
+    launch: { boost: 1.5, time: 2.0 },   // 완전히 섰다가 다시 출발하면 처음 time초 동안 가속 ×boost (급출발)
     // 1차로 버스: 정지선에 앞을 맞춰 서 있고, 녹색불이 돼도 출발하지 않는다. 뛰어든 사람(peds 7번째)이 버스 앞을 다 지나가면 출발 (시속 40km까지)
     truck: { type: 'bus', label: '버스', parked: true, s: 109.35, x: 1.75, up: 0, flat: 0, down: 0, mass: 10, hl: 5.6, hw: 1.25, height: 3.2, goAfterPed: 6, goV: 11.1, goAcc: 1.5 },
     oncoming: [
@@ -2984,8 +2985,13 @@ function step(dt) {
   }
   // 가속 페달은 항상 밟혀 있다 (빠를수록 덜 붙는다). 브레이크를 밟는 동안만 느려진다.
   if (onPath) {} else if (keys.down) p.v -= 8 * dt;
-  else p.v += 4.2 * (1 - p.v / (V_MAX * 1.08)) * dt * (p.path && p.path.boost && t - p.path.doneT < p.path.boostT ? p.path.boost : 1);   // 09: 코너를 빠져나오며 급가속
+  else {
+    if (SC.launch && p.stopped) { p.stopped = false; p.launchT = t; }   // 11: 완전히 선 뒤 브레이크를 떼는 순간부터 급출발
+    const launchK = SC.launch && p.launchT !== undefined && t - p.launchT < SC.launch.time ? SC.launch.boost : 1;
+    p.v += 4.2 * (1 - p.v / (V_MAX * 1.08)) * dt * launchK * (p.path && p.path.boost && t - p.path.doneT < p.path.boostT ? p.path.boost : 1);   // 09: 코너를 빠져나오며 급가속
+  }
   if (!onPath) p.v = clamp(p.v, 0, SC.player.vmax || V_MAX);   // vmax: 시나리오별 최고속도 (m/s)
+  if (SC.launch && !onPath && p.v <= 0) p.stopped = true;
   const held = SC.signal && t < SC.signal.greenAt;   // 빨간불: 자동으로 브레이크가 걸려 서 있다
   if (held) p.v = 0;
   if (SC.signal && t - dt < SC.signal.greenAt && t >= SC.signal.greenAt) ev('green');
