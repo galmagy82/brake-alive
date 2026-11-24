@@ -1993,12 +1993,15 @@ function upgradeBus(outer) {
   body.geometry = sideProfile([[-5.6, -1.4], [5.6, -1.4], [5.6, 1.1], [5.42, 1.4], [-5.5, 1.4], [-5.6, 1.25]], 2.5, 0.08); body.material = phong(0x2f8f5b, 55);
   band.material = LEAD_GLASS_M; glass.material = LEAD_GLASS_M;
   kid(body, new THREE.BoxGeometry(2.0, 0.28, 3.2), LEAD_METAL_M, 0, 1.54, 0.8);                  // 지붕 위 에어컨
-  // 아래쪽 흰 띠: 바퀴 자리(바퀴 z -3.6, 3.4, 반지름 0.58+여유)에서 끊고 앞범퍼(z -5.5)와도 떨어뜨린다 (겹치면 면이 깜빡이며 깨져 보임)
+  // 아래쪽 흰 띠 (양옆 따로): 바퀴 자리(바퀴 z -3.6, 3.4, 반지름 0.58+여유)에서 끊고 앞범퍼(z -5.5)와도 떨어뜨린다 (겹치면 면이 깜빡이며 깨져 보임)
+  // 오른쪽(+x)은 출입문(앞문 z -5.15~-4.05, 뒷문 0.05~1.15) 자리에서도 끊는다. 앞범퍼~앞문 사이 짧은 토막은 뺀다
   const bandM = phong(0xe9e6de, 40);
-  [[-5.45, -4.22], [-2.98, 2.78], [4.02, 5.5]].forEach(([z0, z1]) => kid(body, new THREE.BoxGeometry(2.52, 0.18, z1 - z0), bandM, 0, -0.95, (z0 + z1) / 2));
+  [[-1, [[-5.45, -4.22], [-2.98, 2.78], [4.02, 5.5]]], [1, [[-2.98, 0.03], [1.17, 2.78], [4.02, 5.5]]]].forEach(([sg, segs]) =>
+    segs.forEach(([z0, z1]) => kid(body, new THREE.BoxGeometry(0.03, 0.18, z1 - z0), bandM, sg * 1.245, -0.95, (z0 + z1) / 2)));
   [-4.6, 0.6].forEach(z => kid(body, new THREE.BoxGeometry(0.04, 2.15, 1.1), LEAD_GLASS_M, 1.27, -0.2, z));   // 오른쪽 출입문
   [-1, 1].forEach(sg => kid(body, new THREE.BoxGeometry(0.08, 0.42, 0.2), LEAD_TRIM_M, sg * 1.38, 0.9, -5.45));   // 사이드미러
   front.material = LEAD_TRIM_M;
+  front.geometry = new THREE.BoxGeometry(2.56, 1.0, 0.3);   // 앞범퍼를 차체(폭 2.5)보다 양옆 3cm 넓게: 옆면이 차체 옆면과 겹쳐 깜빡이지 않게
 }
 function makeTruck() {
   const outer = new THREE.Group();
