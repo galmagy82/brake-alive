@@ -857,7 +857,7 @@ const SCENARIOS = [
     oncoming: [
       // 옆 차: 2차로, 앞범퍼가 정지선 0.3m 뒤. 녹색불 뒤 boostT초 동안 내 가속 × acc1(조금 앞서 나간다), 그 뒤 × acc2(나란히 달린다).
       // blinkS에서 왼쪽 깜빡이, delay초 뒤 1차로로 비스듬히 들어온다 (옆으로 최대 latV m/s, 부드럽게 시작하고 끝난다)
-      { label: '끼어든 차', hazard: true, color: 0x8a6d1f, s: 100 - 10.6 - 0.3 - 2.15, x: 5.25, v: 0, drop: { acc1: 1.1, boostT: 2.0, acc2: 1.0, blinkS: 200, delay: 0, latV: 1.2 } },
+      { label: '끼어든 차', hazard: true, color: 0x8a6d1f, s: 100 - 10.6 - 0.3 - 2.15, x: 5.25, v: 0, drop: { acc1: 1.1, boostT: 4.0, acc2: 1.0, blinkS: 200, delay: 0, latV: 1.2 } },
       // 맞은편 신호 대기 차들: 건너편 정지선 뒤 두 차로에 4대씩 (녹색불에 출발)
       ...[-1.75, -5.25].flatMap(x => [0, 1, 2, 3].map(k => ({ s: 100 + 10.9 + 2.15 + k * 7 + (x < -3 ? 1.2 : 0), x, v: 14, queue: { acc: 2 } }))),
       ...Array.from({ length: 6 }, (_, k) => [{ s: 300 + k * 90, v: 15, x: -1.75 }, { s: 330 + k * 90, v: 13.5, x: -5.25 }]).flat(),
