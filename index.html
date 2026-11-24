@@ -2516,6 +2516,7 @@ function chainStep(dt) {
   if (R.type === 'alley') alleyWalls();
   if (R.median || R.tunnel) roadWalls();
   postHits();
+  if (R.cutHill && R.curves) hillWalls();
   chainCollide(false);
   G.peds.forEach(q => {
     const f = q.fly; if (!f) return;
@@ -2622,6 +2623,40 @@ function postHits() {
       if (b.id === 'me') C.shakeT = C.tc;
       crashSound(dv / 30);
     }
+  }
+}
+// 굽은 국도(10, 12): 커브 안쪽 언덕이 0.5m 넘게 솟기 시작하는 곳을 벽으로 본다 (차가 비탈 속으로 파고들지 않게).
+// 벽 위치는 bank()의 언덕 모양(가장자리 F0 밖 8m 사이에 smoothstep으로 솟음)을 따라간다. 언덕이 낮은 곳(커브 끝)에는 벽이 없다
+function hillWallX(s) {
+  const kc = curvNear(s); if (!kc) return null;
+  const H = R.cutHill * Math.min(1, Math.abs(kc) * 170); if (H < 0.5) return null;
+  const t = 0.5 / H; let lo = 0, hi = 1;
+  for (let i = 0; i < 14; i++) { const u = (lo + hi) / 2; if (u * u * (3 - 2 * u) < t) lo = u; else hi = u; }
+  return { sg: Math.sign(kc), x: (R.flat || 6) + 8 * lo };
+}
+function hillWalls() {
+  const C = G.ch;
+  for (const b of C.bodies) {
+    const W = hillWallX(b.s);
+    if (!W) { b.hillSide = 0; continue; }
+    const e = bodyExt(b), sg = W.sg, lim = W.x - e.w;
+    if (sg * b.x <= lim) { b.hillSide = 0; continue; }
+    b.x = sg * lim;
+    const vn = sg * b.vx; if (vn <= 0) continue;
+    const v0 = [b.vs, b.vx];
+    b.vx = -sg * vn * 0.1;
+    const ft = Math.min(Math.abs(b.vs), 0.4 * vn * 1.1); b.vs -= Math.sign(b.vs) * ft;   // 비탈 마찰
+    b.wr += -sg * Math.sign(b.vs || 1) * vn * 0.08;
+    b.hit = true;
+    const dv = Math.hypot(b.vs - v0[0], b.vx - v0[1]);
+    if (b.hillSide === sg || dv < 2) { b.hillSide = sg; continue; }
+    b.hillSide = sg;
+    const d = -b.dir * Math.sin(b.yaw) * sg, face = Math.abs(d) < 0.7 ? 'side' : d > 0 ? 'front' : 'rear';
+    b.impacts.push({ t: G.t, other: 'wall', wn: '비탈', dv, speed: Math.hypot(v0[0], v0[1]), face });
+    const rec = { t: G.t, a: b.id, b: 'wall', s: b.s, x: sg * W.x, vs: b.vs, sideA: face, sideB: 'none', dvA: dv, dvB: 0 };
+    rec.debris = makeDebris(rec, b, { id: 'wall' }); C.impacts.push(rec);
+    if (b.id === 'me') C.shakeT = C.tc;
+    crashSound(dv / 30);
   }
 }
 // 고속도로(07): 중앙분리대와 터널 벽에 막힌다. 부딪히면 튕겨 나오며 속도를 잃는다 (골목 벽과 같은 방식)
