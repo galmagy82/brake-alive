@@ -840,7 +840,38 @@ const SCENARIOS = [
     headOnBody: '커브 안쪽 산에 가려 맞은편 차로가 보이지 않는 곳에서 추월하다 맞은편 차와 부딪혔습니다.',
     chainBody: '한 번의 충돌이 여러 차를 휘말리게 했습니다.',
   },
-  { id: '13', title: '차로 변경' },
+  {
+    id: '13', title: '줄어드는 차로', ready: true,
+    info: '도심 왕복 4차로 · 오후 5시 30분',
+    mission: { time: 35 },
+    // 교차로(100m) 정지선에서 신호를 기다리다 녹색불에 출발. 나는 1차로, 옆 2차로에는 반 대 앞에 선 차.
+    // 교차로를 지나 150m(250m)에 '차로 줄어듦' 표지판, 200m(300m)부터 60m에 걸쳐 2차로가 1차로로 합쳐진다.
+    // 옆 차는 나와 같은 가속으로 나란히 달리다가, 좁아지는 곳 직전에 왼쪽 깜빡이를 켜고 1.5초 뒤 속도를 올려 1차로로 들어온다
+    road: { type: 'city4', half: 7.0, flat: 10.5, xMin: -6.3, xMax: 6.3, hillStart: 1e6, hillEnd: 1e6 + 1, crest: 1e6, H: 0,
+      zoneStart: -1e4, zoneEnd: 1e4, intersection: 100, goal: 420, crossCars: false, laneDrop: { s0: 300, taper: 60, sign: 250 } },
+    signal: { greenAt: 5 },   // 출발 5초 뒤 녹색불 (그 전에는 자동으로 브레이크가 걸려 있다)
+    // 나: 1차로, 앞범퍼가 정지선 2.8m 뒤 (옆 차가 반 대 앞). 최고 시속 60km
+    player: { s: 100 - 10.6 - 2.8 - 2.15, v: 0, x: 1.75, vmax: 16.67 },
+    truck: { type: 'truck', label: '화물차', parked: true, s: 5000, x: 40, up: 0, flat: 0, down: 0, mass: 6, hl: 5, hw: 1.25, height: 3.5 },
+    oncoming: [
+      // 옆 차: 2차로, 앞범퍼가 정지선 0.3m 뒤. blinkS에서 왼쪽 깜빡이, delay초 뒤 cutA로 cutV까지 올리며 옆으로 latV(m/s)씩 1차로로
+      { label: '끼어든 차', hazard: true, color: 0x8a6d1f, s: 100 - 10.6 - 0.3 - 2.15, x: 5.25, v: 16.67, drop: { blinkS: 280, delay: 1.5, cutV: 20, cutA: 2.5, latV: 2.5 } },
+      // 맞은편 신호 대기 차들: 건너편 정지선 뒤 두 차로에 4대씩 (녹색불에 출발)
+      ...[-1.75, -5.25].flatMap(x => [0, 1, 2, 3].map(k => ({ s: 100 + 10.9 + 2.15 + k * 7 + (x < -3 ? 1.2 : 0), x, v: 14, queue: { acc: 2 } }))),
+      ...Array.from({ length: 6 }, (_, k) => [{ s: 300 + k * 90, v: 15, x: -1.75 }, { s: 330 + k * 90, v: 13.5, x: -5.25 }]).flat(),
+    ],
+    lessons: [
+      '교차로를 지나면 차로 수가 바뀔 수 있습니다. 차로가 줄어든다는 표지판을 놓치지 마세요.',
+      '차로가 줄어드는 곳에서는 옆 차와 나란히 달리지 말고, 조금 물러나 들어올 자리를 남겨 두세요.',
+      '옆 차가 깜빡이를 켜거나 속도를 올리면 끼어들 신호입니다. 다투지 말고 먼저 보내 주세요.',
+    ],
+    thumb: { s: 230, x: 1.75, lead: 5000 },
+    hint: '누르고 있는 동안 왼쪽·오른쪽으로 움직이고, 떼면 그 자리를 유지합니다.',
+    replay: 'plan', sightLines: false,
+    dropBody: '2차로가 끝나는 곳에서, 나란히 달리던 옆 차가 속도를 올려 1차로로 끼어들었습니다. 표지판을 보고 미리 속도를 줄였다면 앞에 들어올 자리가 있었습니다.',
+    headOnBody: '중앙선을 넘어 피할 곳은 없었습니다.',
+    chainBody: '한 대의 무리한 끼어들기가 여러 차를 사고에 휘말리게 했습니다.',
+  },
   { id: '14', title: '노란불 교차로' },
   { id: '15', title: '스쿨존 골목' },
   { id: '16', title: '운전 중 메시지' },
@@ -983,6 +1014,7 @@ function buildWorld() {
     else if (R.crosswalk) { addCrosswalkSign(R.crosswalk - 4, R.half + 1.2); addCrosswalkSign(R.crosswalk + 4, -R.half - 1.2, true); }
     if (R.intersection) buildIntersectionProps();
     if (R.merge) addMergeSign(R.merge.s0 - 45, R.half + 2.4);
+    if (R.laneDrop) buildLaneDropProps();
     if (R.median) buildMedian();
     if (R.tunnel) buildTunnel();
   } else { addSign(R.zoneStart - 8, 4.9); addSign(R.zoneStart - 8, -4.9); }   // 맞은편 방향 표지 뒷면 대신 양쪽에 설치
@@ -1496,6 +1528,21 @@ function buildRoad() {
       quad(white, M.s1, HW + 3.72, M.s1 + M.taper, HW + 0.05, 0.15, 0.02);              // 좁아지는 선
       for (let k = M.s0; k < M.s1; k += 6) ribbon(white, k, k + 3, HW - 0.2, HW - 0.05, 0.02, 1);   // 2차로와 가속 차로 사이 점선
     }
+    const LD = R.laneDrop;   // 13: 2차로가 s0부터 taper m에 걸쳐 1차로로 합쳐진다 (사선 실선 + 그 바깥 빗금)
+    if (LD) {
+      const sA = LD.s0, sB = LD.s0 + LD.taper, xR = HW - 0.2, xL = 3.575;
+      const seg = (arr, s1, x1, s2, x2, w, y) => {   // (s1,x1)→(s2,x2) 방향의 폭 w 띠
+        const ds = s2 - s1, dx = x2 - x1, n = Math.hypot(ds, dx), ns = -dx / n * w / 2, nx = ds / n * w / 2;
+        arr.push(x1 - nx, y, -(s1 - ns), x1 + nx, y, -(s1 + ns), x2 + nx, y, -(s2 + ns), x1 - nx, y, -(s1 - ns), x2 + nx, y, -(s2 + ns), x2 - nx, y, -(s2 - ns));
+      };
+      seg(white, sA, xR + 0.07, sB, xL, 0.15, 0.021);                       // 좁아지는 사선 실선
+      ribbon(white, sB, 1720, xL - 0.075, xL + 0.075, 0.021, 2);             // 그 뒤 차로 가장자리 실선
+      const xIn = q => q <= sA ? xR : q >= sB ? xL : xR + (xL - xR) * (q - sA) / LD.taper;   // 빗금 안쪽 경계
+      for (let q = sA + 3; q < 1720; q += 3.5) {                              // 빗금: 45° 사선 (안쪽 경계 → 바깥쪽 앞)
+        const x0 = xIn(q) + 0.15, d = xR - 0.1 - x0; if (d < 0.3) continue;
+        seg(white, q, x0, q + d, xR - 0.1, 0.3, 0.02);
+      }
+    }
     // 중앙선 두 줄 실선. 유턴 구간에서는 끊고 흰 점선(3m 칠하고 3m 비움)
     const UZ = R.uturnZone;
     if (UZ) {
@@ -1505,7 +1552,7 @@ function buildRoad() {
     for (let k = -320; k < 1720; k += 10) {   // 차로 경계 점선 (횡단보도·교차로 부근 제외)
       if (cw && k + 3 > cw - 12 && k < cw + 6) continue;
       if (ix && k + 3 > ix - HW - 12 && k < ix + HW + 12) continue;
-      for (let L = 1; L < (R.lanes || 2); L++) { const lx = 3.5 * L; ribbon(white, k, k + 3, -lx - 0.075, -lx + 0.075, 0.02, 1); ribbon(white, k, k + 3, lx - 0.075, lx + 0.075, 0.02, 1); }   // 편도 2차로면 ±3.5, 3차로면 ±7도
+      for (let L = 1; L < (R.lanes || 2); L++) { const lx = 3.5 * L; ribbon(white, k, k + 3, -lx - 0.075, -lx + 0.075, 0.02, 1); if (!(R.laneDrop && k + 3 > R.laneDrop.s0)) ribbon(white, k, k + 3, lx - 0.075, lx + 0.075, 0.02, 1); }   // 줄어드는 차로: 좁아지는 곳부터 1·2차로 점선 없음   // 편도 2차로면 ±3.5, 3차로면 ±7도
     }
     if (cw) {
       for (let x = -HW + 0.4; x < HW - 0.4; x += 1.0) ribbon(white, cw - 2, cw + 2, x, x + 0.5, 0.02, 1);   // 횡단보도 얼룩무늬
@@ -1753,6 +1800,42 @@ function addMergeSign(s, x) {   // 노란 마름모: 오른쪽에서 합류 (본
     g.lineWidth = 10; g.beginPath(); g.moveTo(44, 70); g.quadraticCurveTo(40, 10, -6, -6); g.stroke();
   }) }));
   plate.position.y = 3.0; grp.add(plate); placeOnRoad(grp, s, x, h(s), 0); world.add(grp);
+}
+// 13: '차로 줄어듦' 주의표지(노란 삼각형: 오른쪽 차로가 끝나는 그림 + 글자판), 2차로 노면의 왼쪽 유도 화살표, 사선을 따라 시선유도봉
+function buildLaneDropProps() {
+  const LD = R.laneDrop, HW = R.half;
+  const grp = new THREE.Group();
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 3.2, 6), lambert(0x9aa0a6)); post.position.y = 1.6; grp.add(post);
+  const tri = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.2), new THREE.MeshBasicMaterial({ transparent: true, map: texFrom(256, 256, g => {
+    const tp = (r) => { g.beginPath(); g.moveTo(128, 128 - r); g.lineTo(128 + r * 0.866, 128 + r * 0.5); g.lineTo(128 - r * 0.866, 128 + r * 0.5); g.closePath(); };
+    g.translate(0, 22); g.lineJoin = 'round';
+    tp(140); g.fillStyle = '#d7261e'; g.fill(); tp(112); g.fillStyle = '#f2c200'; g.fill();
+    g.strokeStyle = '#111'; g.lineWidth = 14; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(108, 168); g.lineTo(108, 72); g.stroke();                                     // 남는 차로 (왼쪽 선)
+    g.beginPath(); g.moveTo(150, 168); g.lineTo(150, 128); g.lineTo(130, 96); g.lineTo(130, 72); g.stroke();   // 오른쪽 선이 안으로 들어와 좁아진다
+  }) }));
+  tri.position.y = 3.05; grp.add(tri);
+  const plate = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.34), new THREE.MeshBasicMaterial({ map: texFrom(256, 72, g => {
+    g.fillStyle = '#fff'; g.fillRect(0, 0, 256, 72); g.strokeStyle = '#111'; g.lineWidth = 5; g.strokeRect(3, 3, 250, 66);
+    g.fillStyle = '#111'; g.font = 'bold 36px "Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('차로 줄어듦', 128, 38);
+  }) }));
+  plate.position.y = 2.25; grp.add(plate);
+  placeOnRoad(grp, LD.sign, HW + 1.2, h(LD.sign), 0); world.add(grp);
+  // 노면 화살표: 2차로 가운데, 위(앞)로 가다가 왼쪽으로 꺾인다
+  const arrowM = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -6, map: texFrom(128, 512, g => {
+    g.fillStyle = 'rgba(232,232,224,.92)'; g.fillRect(52, 230, 24, 270);
+    g.beginPath(); g.moveTo(52, 250); g.lineTo(76, 250); g.lineTo(46, 120); g.lineTo(22, 120); g.closePath(); g.fill();   // 왼쪽 앞으로 비스듬히
+    g.beginPath(); g.moveTo(16, 42); g.lineTo(63, 113); g.lineTo(5, 127); g.closePath(); g.fill();                       // 화살촉
+  }) });
+  [LD.s0 - 60, LD.s0 - 25].forEach(q => { const a = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 5.2), arrowM); a.rotation.x = -Math.PI / 2; const o = new THREE.Group(); o.add(a); placeOnRoad(o, q, 5.25, h(q) + 0.022, 0); world.add(o); });
+  // 시선유도봉: 좁아지는 사선을 따라 5m마다 (주황 + 흰 반사띠)
+  const bodyG = new THREE.CylinderGeometry(0.06, 0.07, 0.75, 8), bandG = new THREE.CylinderGeometry(0.065, 0.065, 0.08, 8), orange = lambert(0xff7a1a), whiteM = basic(0xf0f0ea);
+  for (let q = LD.s0 + 5; q <= LD.s0 + LD.taper; q += 5) {
+    const x = HW - 0.13 + (3.575 - (HW - 0.13)) * (q - LD.s0) / LD.taper + 0.4, o = new THREE.Group();
+    const b = new THREE.Mesh(bodyG, orange); b.position.y = 0.375; o.add(b);
+    [0.5, 0.64].forEach(y => { const w = new THREE.Mesh(bandG, whiteM); w.position.y = y; o.add(w); });
+    placeOnRoad(o, q, x, h(q), 0); world.add(o);
+  }
 }
 const _cv = new THREE.Vector3();   // 굽은 도로 좌표 계산용 임시 벡터
 // 무리(group)를 도로 위 (s, x)에 놓고 도로 방향에 맞춰 돌린다 (굽은 도로가 아니면 (x, h(s), -s), 회전 0)
@@ -2880,6 +2963,7 @@ function newRound() {
     if (o.startAt != null) Object.assign(c, { go0: o.startAt, acc: o.acc || 2.5, vT: o.v, v: 0 });   // 신호 대기: 정해진 시각(녹색불)에 출발                                        // 정체 줄의 차
     if (o.uturn) { Object.assign(c, { uturn: o.uturn, u: 0, x0: c.x, yaw: 0, v1: o.v, turning: false }); addBlinker(carMeshes[c.idx]); }   // 유턴 직전 왼쪽 깜빡이
     if (o.merge) { Object.assign(c, { fwd: true, merge: true, u: o.u0, cutAt: o.cutAt, cutV: o.cutV, cutA: o.cutA }); Object.assign(c, mergePos(c.u)); }
+    if (o.drop) { Object.assign(c, { fwd: true, drop: o.drop, vT: o.v, v: 0, yaw: 0 }); addBlinker(carMeshes[c.idx]); }   // 13: 줄어드는 차로에서 끼어드는 옆 차
   });   // 처음부터 정해진 위치에서 달린다
   carMeshes.forEach(m => m.outer.visible = false);
   G.peds = (SC.peds || []).map(d => ({ ...d, x: d.x0, phase: 0, fly: null, hitSpeed: 0, outT: null, cv: d.v }));
@@ -2904,6 +2988,19 @@ function mergeMove(c, dt) {   // 정해진 시각(cutAt)까지는 가속 차로�
   c.v = Math.min(c.cutV, c.v + c.cutA * dt);
   const vx = c.x > 5.25 ? -2.8 : 0; c.x = Math.max(5.25, c.x + vx * dt); c.s += c.v * dt;
   c.yaw = vx ? Math.atan2(-vx, c.v) : 0;
+}
+// 13: 신호 대기 → 녹색불에 나와 같은 가속으로 출발 (최고 vT). blinkS에서 왼쪽 깜빡이, delay초 뒤 속도를 올리며 1차로(x 1.75)로 들어온다
+function dropMove(c, dt) {
+  const D = c.drop;
+  if (G.t < SC.signal.greenAt) { c.v = 0; return; }
+  if (!c.cut) c.v = Math.min(c.vT, c.v + 4.2 * (1 - c.v / (V_MAX * 1.08)) * dt);
+  if (c.blinkT === undefined && c.s >= D.blinkS) { c.blinkT = G.t; ev('dropBlink', { idx: c.idx }); }
+  if (!c.cut && c.blinkT !== undefined && G.t >= c.blinkT + D.delay) { c.cut = true; ev('dropCut', { idx: c.idx }); }
+  if (c.cut) {
+    c.v = Math.min(D.cutV, c.v + D.cutA * dt);
+    const vx = c.x > 1.75 ? -D.latV : 0; c.x = Math.max(1.75, c.x + vx * dt); c.yaw = vx ? Math.atan2(-vx, c.v) : 0;
+  }
+  c.s += c.v * dt;
 }
 function ev(type, data) { G.events.push(Object.assign({ t: G.t, type }, data || {})); }
 // 비보호 좌회전 차: 직진하다 회전 시작점 앞에서 속도를 줄이고, 1/4 원을 그리며 내 앞을 가로질러 오른쪽 도로로 나간다.
@@ -3031,7 +3128,7 @@ function step(dt) {
   }
   if (G.bait) { const bt = G.bait, bl = slope(bt.s), bv = bl > 0.03 ? SC.bait.up : (bl < -0.03 ? SC.bait.down : SC.bait.flat); bt.v += (bv - bt.v) * Math.min(1, dt * 0.6); bt.s += bt.v * dt; }
   G.cars.forEach(c => { if (c.wakeT != null && G.t >= c.wakeT) { c.active = true; c.wakeT = null; } });
-  G.cars.forEach(c => { if (!c.active) return; if (c.uturn) uturnMove(c, dt); else if (c.turn) turnMove(c, dt); else if (c.cross) { c.x -= c.v * dt; if (c.x < -150) c.active = false; } else if (c.merge) mergeMove(c, dt); else if (c.fwd) { if (c.go0 !== undefined) c.v = G.t < c.go0 ? 0 : Math.min(c.vT, c.v + c.acc * dt); if (c.follow) followMove(c, dt); c.s += c.v * dt; }
+  G.cars.forEach(c => { if (!c.active) return; if (c.uturn) uturnMove(c, dt); else if (c.turn) turnMove(c, dt); else if (c.cross) { c.x -= c.v * dt; if (c.x < -150) c.active = false; } else if (c.merge) mergeMove(c, dt); else if (c.drop) dropMove(c, dt); else if (c.fwd) { if (c.go0 !== undefined) c.v = G.t < c.go0 ? 0 : Math.min(c.vT, c.v + c.acc * dt); if (c.follow) followMove(c, dt); c.s += c.v * dt; }
     else if (c.queue) {   // 녹색불이 켜지고, 가로질러 달려오는 차가 모두 지나간 뒤 출발한다
       if (!c.go && G.t >= SC.signal.greenAt && !G.cars.some(r => r.cross && r.active && r.x > -9)) c.go = true;
       if (c.go) { c.v = Math.min(c.vT, c.v + c.queue.acc * dt); c.s -= c.v * dt; }
@@ -3098,7 +3195,7 @@ function step(dt) {
   for (const c of G.cars) {
     if (!c.active) continue;
     const yw = c.yaw || 0, cy = Math.abs(Math.cos(yw)), sy = Math.abs(Math.sin(yw));   // 도는 차는 돌아간 만큼 차지하는 폭이 바뀐다
-    if (Math.abs(c.s - p.s) < CAR_HL * cy + CAR_HW * sy + 2.15 && Math.abs(c.x - p.x) < CAR_HL * sy + CAR_HW * cy + 0.85) return crash(c.uturn ? 'uturn' : c.turn ? 'turn' : c.cross ? 'runner' : c.merge ? 'merge' : c.parked ? 'parked' : c.jam ? 'jam' : c.fwd ? 'lane' : 'head', c);
+    if (Math.abs(c.s - p.s) < CAR_HL * cy + CAR_HW * sy + 2.15 && Math.abs(c.x - p.x) < CAR_HL * sy + CAR_HW * cy + 0.85) return crash(c.uturn ? 'uturn' : c.turn ? 'turn' : c.cross ? 'runner' : c.merge ? 'merge' : c.drop ? 'drop' : c.parked ? 'parked' : c.jam ? 'jam' : c.fwd ? 'lane' : 'head', c);
   }
 
   if (p.s >= R.goal) finish();
@@ -3154,7 +3251,7 @@ function drawWorld(f, showPlayer) {
     const cd = damageAt('c' + i, f.t); m.inner.scale.z = (cd.front || cd.rear) ? 0.76 : 1;
     // 깜빡이 (1.5Hz). 좌회전 차: 다 돌 때까지. 유턴 차: 유턴 지점 blink m 전(기본 6m, 약 1초 전; 1번 차는 0 = 돌기 시작하면서)부터 다 돌 때까지
     if (m.blink) { const cy = f.cy ? f.cy[i] : 0, cxv = f.cx ? f.cx[i] : c.x;
-      const on = c.uturn ? (cxv < 0 && s - c.uturn.S0 < (c.uturn.blink ?? 6)) || (cy > 0.02 && cy < Math.PI - 0.15) : cy < 1.45;
+      const on = c.drop ? s >= c.drop.blinkS && cxv > 1.8 : c.uturn ? (cxv < 0 && s - c.uturn.S0 < (c.uturn.blink ?? 6)) || (cy > 0.02 && cy < Math.PI - 0.15) : cy < 1.45;
       m.blink.visible = isFinite(s) && f.t >= 0 && on && Math.floor(f.t * 3) % 2 === 0; }
   });
   pedMeshes.forEach((pm, i) => {
@@ -3542,6 +3639,8 @@ function captionFor(e) {
     case 'mergeCut': return '합류하던 차가 갑자기 속도를 올리며 2차로로 끼어들었습니다.' + (toCrash && end.type === 'merge' ? ` 충돌까지 ${toCrash}초.` : '');
     case 'stagger': { const q = G.peds[e.idx]; return '길가를 걷던 사람이 비틀거리며 길 가운데로 들어왔습니다.' + (toCrash && end.type === 'ped' && q && q.hitSpeed ? ` 충돌까지 ${toCrash}초.` : ''); }
     case 'green': return '신호가 녹색으로 바뀌었습니다.';
+    case 'dropBlink': return '2차로가 끝나 가자, 옆 차가 왼쪽 깜빡이를 켰습니다.';
+    case 'dropCut': return '옆 차가 속도를 올리며 1차로로 끼어들었습니다.' + (toCrash && end.type === 'drop' ? ` 충돌까지 ${toCrash}초.` : '');
     case 'truckBrake': return `옆 차로 ${SC.truck.label}가 출발하자마자 급정거했습니다.`;
     case 'runnerSeen': return '신호를 무시하고 달려오는 차가 처음 보였습니다.' + (toCrash && end.type === 'runner' && end.car && end.car.idx === e.idx ? ` 충돌까지 ${toCrash}초.` : '');
     case 'crash': return '';
@@ -3764,10 +3863,19 @@ function drawPlan(f) {
   if (R.intersection) { pctx.fillStyle = '#2a313c'; pctx.fillRect(X(R.intersection - HW), 0, 2 * HW * k, H); }   // 가로 도로
   if (R.merge) { const M = R.merge; pctx.fillStyle = '#2a313c'; pctx.fillRect(X(M.s0), Y(HW), (M.s1 - M.s0) * k, 3.8 * vx); pctx.beginPath(); pctx.moveTo(X(M.s1), Y(HW)); pctx.lineTo(X(M.s1), Y(HW + 3.8)); pctx.lineTo(X(M.s1 + M.taper), Y(HW)); pctx.fill(); }   // 가속 차로
   sideAlleys().forEach(a => { pctx.fillStyle = '#2a313c'; a.side < 0 ? pctx.fillRect(X(a.s - a.w / 2), 0, a.w * k, Y(-HW)) : pctx.fillRect(X(a.s - a.w / 2), Y(HW), a.w * k, H - Y(HW)); });   // 갈림 골목들
+  if (R.laneDrop) {   // 13: 끝나는 2차로 (사선 + 빗금 구역)
+    const LD = R.laneDrop, a = X(LD.s0), b = X(LD.s0 + LD.taper);
+    pctx.save(); pctx.beginPath(); pctx.moveTo(a, Y(HW)); pctx.lineTo(b, Y(3.5)); pctx.lineTo(W + 10, Y(3.5)); pctx.lineTo(W + 10, Y(HW)); pctx.closePath();
+    pctx.fillStyle = '#353b44'; pctx.fill(); pctx.clip();
+    pctx.strokeStyle = 'rgba(216,216,208,.35)'; pctx.lineWidth = 1.5; const hh = Y(HW) - Y(3.5);
+    for (let xx = a - hh; xx < W + 10; xx += 3.5 * k) { pctx.beginPath(); pctx.moveTo(xx, Y(3.5)); pctx.lineTo(xx + hh, Y(HW)); pctx.stroke(); }
+    pctx.restore();
+    pctx.strokeStyle = 'rgba(216,216,208,.8)'; pctx.lineWidth = 1.5; pctx.beginPath(); pctx.moveTo(a, Y(HW)); pctx.lineTo(b, Y(3.5)); pctx.lineTo(W + 10, Y(3.5)); pctx.stroke();
+  }
   if (R.type !== 'alley') {
     pctx.fillStyle = 'rgba(242,183,5,.9)'; pctx.fillRect(0, Y(-0.2), W, Math.max(1.5, 0.4 * vx));            // 중앙선
     pctx.strokeStyle = 'rgba(216,216,208,.45)'; pctx.lineWidth = 1; pctx.setLineDash([6, 8]);
-    (R.lanes === 3 ? [-7, -3.5, 3.5, 7] : [-3.5, 3.5]).forEach(x => { pctx.beginPath(); pctx.moveTo(0, Y(x)); pctx.lineTo(W, Y(x)); pctx.stroke(); }); pctx.setLineDash([]);
+    (R.lanes === 3 ? [-7, -3.5, 3.5, 7] : [-3.5, 3.5]).forEach(x => { pctx.beginPath(); pctx.moveTo(0, Y(x)); pctx.lineTo(x > 0 && R.laneDrop ? clamp(X(R.laneDrop.s0), 0, W) : W, Y(x)); pctx.stroke(); }); pctx.setLineDash([]);
     if (R.tunnel) {   // 터널 구간: 어두운 띠 + 벽 선
       const T = R.tunnel, xr = tunnelXR(), xa = T.twin ? -xr : 0, a = X(T.s0), b = X(T.s1);
       pctx.fillStyle = 'rgba(0,0,0,.45)'; pctx.fillRect(a, Y(xa), b - a, Y(xr) - Y(xa));
@@ -3834,6 +3942,9 @@ function showResult() {
     } else if (e.type === 'merge') {
       title = '끼어든 차와 충돌'; sub = '';
       body = (G.flags.cutT ? '' : '') + '합류 지점에서는 합류하던 차가 갑자기 들어올 수 있습니다. 미리 속도를 줄여 앞 공간을 남겨 두세요.';
+    } else if (e.type === 'drop') {
+      title = '끼어든 차와 충돌'; sub = '';
+      body = SC.dropBody || '';
     } else if (e.type === 'uturn') {
       title = '유턴 차와 충돌'; sub = '';
       body = '교차로를 지나자마자 있는 유턴 구간에서, 맞은편 차가 크게 돌아 내가 달리던 차로까지 넘어왔습니다.';
