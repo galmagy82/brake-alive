@@ -1703,10 +1703,12 @@ function treePoles() {
     for (let i = 0; i + 1 < n; i++) {
       const A = L[i], B = L[i + 1]; if (Math.sign(A.x) !== Math.sign(B.x)) continue;
       [-0.6, 0, 0.6].forEach(dx => {
+        // 두 전봇대 꼭대기(가로대 위 dx 자리)를 실제 위치에서 직선으로 잇고 아래로만 처지게 한다 (굽은 도로를 따라 휘지 않는다)
+        const P0 = wpos(A.s, A.x, h(A.s) + top), P1 = wpos(B.s, B.x, h(B.s) + top), Q0 = wpos(A.s, A.x + 1, 0), Q1 = wpos(B.s, B.x + 1, 0);
+        const o0x = (Q0.x - wpos(A.s, A.x, 0).x) * dx, o0z = (Q0.z - wpos(A.s, A.x, 0).z) * dx, o1x = (Q1.x - wpos(B.s, B.x, 0).x) * dx, o1z = (Q1.z - wpos(B.s, B.x, 0).z) * dx;
         let prev = null;
         for (let k = 0; k <= 8; k++) {
-          const t = k / 8, ss = A.s + (B.s - A.s) * t, xx = A.x + (B.x - A.x) * t + dx, y = h(A.s) + (h(B.s) - h(A.s)) * t + top - Math.sin(t * Math.PI) * sag;
-          const w = wpos(ss, xx, y), pt = [w.x, w.y, w.z];
+          const t = k / 8, pt = [P0.x + o0x + (P1.x + o1x - P0.x - o0x) * t, P0.y + (P1.y - P0.y) * t - Math.sin(t * Math.PI) * sag, P0.z + o0z + (P1.z + o1z - P0.z - o0z) * t];
           if (prev) seg.push(...prev, ...pt); prev = pt;
         }
       });
