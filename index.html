@@ -1683,7 +1683,7 @@ function roadPostList() {
       out.push({ s: ss, x: sg * (R.half + 2.6), r: 0.12, name: '가로등', lamp: sg });
     });
   } else {
-    for (let i = 0; i < 50; i++) { let ss = -200 + i * 40; if (ix && Math.abs(ss - ix) < R.half + 4) ss += 16;
+    for (let i = 0; i < 44; i++) { let ss = -200 + i * 50; if (ix && Math.abs(ss - ix) < R.half + 4) ss += 16;   // 국도 전봇대: 50m 간격
       const mside = M && ss > M.s0 - M.len - 20 && ss < M.s1 + M.taper + 10 ? -1 : 1;
       out.push({ s: ss, x: mside * ((R.flat || 6) + 0.6), r: 0.16, name: '전봇대' }); }
   }
