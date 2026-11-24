@@ -1008,6 +1008,7 @@ function buildWorld() {
   if (SC.sunAhead) sun.position.set(30, 75, -2100); else sun.position.set(-420, 60, -1900);   // 07: 해 질 녘 해가 출구 정면에
   buildCurve();   // 굽은 도로면 중심선을 먼저 계산
   world = new THREE.Group(); scene.add(world); alleyBld = alleyHide = alleyFoot = null; tunnelExit = tunnelGrp = tunnelFoot = tunnelMouth = null; envIn = null; curveHill = null;
+  ROAD_POSTS = [];   // 골목은 길가 기둥 충돌이 없다 (나무를 만들 때 채운다)
   buildGround(); buildRoad(); buildTrees(); buildGoal();
   if (R.type === 'city4') {
     if (R.crosswalk && SC.xsig) buildSignalCrosswalk();   // 신호 있는 횡단보도 (차량 신호등 + 보행자 신호등)
@@ -1667,13 +1668,46 @@ function buildTreesOld() {   // 예전 나무 (?look=old)
   world.add(trunk, crown);
   treePoles();
 }
+// 길가 기둥: 국도는 전봇대(한쪽, 40m마다), 도심 도로는 가로등(양쪽 엇갈려 40m마다, 팔이 도로 쪽).
+// 사고 후 밀리는 차와 날아가는 사람이 뚫지 않도록 위치를 ROAD_POSTS에 둔다 (physics: postHits)
+let ROAD_POSTS = [];
+function roadPostList() {
+  const out = [], ix = R.intersection, T = R.tunnel, M = R.merge;
+  const skip = ss => (ix && Math.abs(ss - ix) < R.half + 4) || (R.crosswalk && Math.abs(ss - R.crosswalk) < 8) || (T && ss > T.s0 - 4 && ss < T.s1 + 4);
+  if (R.type === 'city4') {
+    for (let i = 0; i < 50; i++) [[1, 0], [-1, 20]].forEach(([sg, off]) => {
+      let ss = -200 + i * 40 + off; if (skip(ss)) ss += 14; if (skip(ss)) return;
+      if (M && sg > 0 && ss > M.s0 - M.len - 20 && ss < M.s1 + M.taper + 10) return;   // 진입로 쪽은 비운다
+      out.push({ s: ss, x: sg * (R.half + 2.6), r: 0.12, name: '가로등', lamp: sg });
+    });
+  } else {
+    for (let i = 0; i < 50; i++) { let ss = -200 + i * 40; if (ix && Math.abs(ss - ix) < R.half + 4) ss += 16;
+      const mside = M && ss > M.s0 - M.len - 20 && ss < M.s1 + M.taper + 10 ? -1 : 1;
+      out.push({ s: ss, x: mside * ((R.flat || 6) + 0.6), r: 0.16, name: '전봇대' }); }
+  }
+  return out;
+}
 function treePoles() {
-  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), sc = new THREE.Vector3();
-  const poleN = 50, pole = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.13, 0.16, 9, 6), lambert(0x6d6a66), poleN);
-  for (let i = 0; i < poleN; i++) { let s = -200 + i * 40; if (R.intersection && Math.abs(s - R.intersection) < R.half + 4) s += 16;
-    const mside = R.merge && s > R.merge.s0 - R.merge.len - 20 && s < R.merge.s1 + R.merge.taper + 10 ? -1 : 1;   // 진입로 구간에서는 반대편에
-    wpos(s, mside * ((R.flat || 6) + 0.6), h(s) + 4.2, p); sc.set(1, 1, 1); m.compose(p, q, sc); pole.setMatrixAt(i, m); }
-  world.add(pole);
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), sc = new THREE.Vector3(1, 1, 1);
+  ROAD_POSTS = roadPostList();
+  const L = ROAD_POSTS, n = L.length;
+  if (R.type !== 'city4') {   // 전봇대
+    const pole = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.13, 0.16, 9, 6), lambert(0x6d6a66), n);
+    L.forEach((o, i) => { wpos(o.s, o.x, h(o.s) + 4.2, p); m.compose(p, q.identity(), sc); pole.setMatrixAt(i, m); });
+    world.add(pole); return;
+  }
+  // 가로등: 기둥(높이 8m) + 도로 쪽으로 뻗은 팔(2.2m) + 등. 저녁에는 등이 밝게, 한낮에는 회색
+  const UP_Y = new THREE.Vector3(0, 1, 0), metal = lambert(0x8a8d91), lit = SC.daylight === 'noon' ? lambert(0xc9ccd0) : basic(0xfff1c8);
+  const pole = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.09, 0.12, 8, 8), metal, n);
+  const arm = new THREE.InstancedMesh(new THREE.BoxGeometry(2.2, 0.08, 0.08), metal, n);
+  const head = new THREE.InstancedMesh(new THREE.BoxGeometry(0.62, 0.14, 0.3), lit, n);
+  L.forEach((o, i) => {
+    const gy = h(o.s) + (Math.abs(o.x) <= R.half + 3 ? 0.15 : 0); q.setFromAxisAngle(UP_Y, -wyaw(o.s));
+    wpos(o.s, o.x, gy + 4, p); m.compose(p, q, sc); pole.setMatrixAt(i, m);
+    wpos(o.s, o.x - o.lamp * 1.1, gy + 7.9, p); m.compose(p, q, sc); arm.setMatrixAt(i, m);
+    wpos(o.s, o.x - o.lamp * 2.1, gy + 7.8, p); m.compose(p, q, sc); head.setMatrixAt(i, m);
+  });
+  world.add(pole, arm, head);
 }
 
 /* 표지판 */
@@ -2479,6 +2513,7 @@ function chainStep(dt) {
   }
   if (R.type === 'alley') alleyWalls();
   if (R.median || R.tunnel) roadWalls();
+  postHits();
   chainCollide(false);
   G.peds.forEach(q => {
     const f = q.fly; if (!f) return;
@@ -2509,6 +2544,11 @@ function chainStep(dt) {
       f.y = lowest() + floorAt(f.s, f.x);   // 구르는 동안에도 바닥 위에 붙어 있다
     }
     f.s += f.vs * dt; f.x += f.vx * dt;
+    for (const P of ROAD_POSTS) {   // 길가 기둥: 닿으면 튕겨 나오며 속도를 잃는다 (사망 확률에는 넣지 않는다)
+      const ds = f.s - P.s, dx = f.x - P.x, d = Math.hypot(ds, dx), rr = P.r + 0.25 * q.scale; if (d >= rr || d < 1e-6) continue;
+      const ns = ds / d, nx = dx / d; f.s = P.s + ns * rr; f.x = P.x + nx * rr;
+      const vn = f.vs * ns + f.vx * nx; if (vn < 0) { f.vs -= ns * vn * 1.2; f.vx -= nx * vn * 1.2; f.vs *= 0.7; f.vx *= 0.7; }
+    }
     if (R.type === 'alley') {   // 골목 담장을 뚫고 나가지 않는다: 부딪히면 튕겨 나오며 속도를 잃는다 (갈림 골목·대문 쪽은 열려 있다)
       const HW = R.half - 0.25 * q.scale - 0.1, openL = alleyOpen(-1, f.s, 0.3), openR = alleyOpen(1, f.s, 0.3);   // 갈림 골목·필로티 입구는 열려 있다
       if (f.x < -HW && !openL) { f.x = -HW; f.vx = Math.abs(f.vx) * 0.2; f.vs *= 0.7; }
@@ -2542,6 +2582,40 @@ function alleyWalls() {
       const d = b.dir * Math.cos(b.yaw) * 0 - b.dir * Math.sin(b.yaw) * sg, face = Math.abs(d) < 0.7 ? 'side' : d > 0 ? 'front' : 'rear';
       b.impacts.push({ t: G.t, other: 'wall', dv, speed: Math.hypot(v0[0], v0[1]), face });
       const rec = { t: G.t, a: b.id, b: 'wall', s: b.s, x: sg * R.half, vs: b.vs, sideA: face, sideB: 'none', dvA: dv, dvB: 0 };
+      rec.debris = makeDebris(rec, b, { id: 'wall' }); C.impacts.push(rec);
+      if (b.id === 'me') C.shakeT = C.tc;
+      crashSound(dv / 30);
+    }
+  }
+}
+// 길가 기둥(전봇대·가로등): 사고 후 밀리는 차가 기둥을 뚫지 않는다. 차체(돌아간 직사각형)가 기둥에 닿으면 밖으로 밀어내고,
+// 기둥 쪽 속도는 거의 잃는다(반발 0.1, 벽과 같은 방식). 크게 부딪히면(약 7km/h 이상) 충격으로 기록해 사망 확률에 넣는다
+function postHits() {
+  const C = G.ch;
+  for (const b of C.bodies) {
+    for (let i = 0; i < ROAD_POSTS.length; i++) {
+      const P = ROAD_POSTS[i], ds = P.s - b.s, dx = P.x - b.x;
+      if (Math.abs(ds) > b.hl + b.hw + 1 || Math.abs(dx) > b.hl + b.hw + 1) { if (b.postIdx === i) b.postIdx = -1; continue; }
+      const cy = Math.cos(b.yaw), sy = Math.sin(b.yaw);   // 차의 앞 방향 (s, x) = (cos, -sin)
+      const a = ds * cy - dx * sy, c = ds * sy + dx * cy;   // 기둥의 차 안쪽 좌표: a 앞뒤, c 좌우
+      const pa = b.hl + P.r - Math.abs(a), pc = b.hw + P.r - Math.abs(c);
+      if (pa <= 0 || pc <= 0) { if (b.postIdx === i) b.postIdx = -1; continue; }
+      // 덜 파고든 쪽으로 밀어낸다. n = 기둥에서 차 쪽 방향 (s, x)
+      let ns, nx, face;
+      if (pa < pc) { const sg = a > 0 ? -1 : 1; ns = sg * cy; nx = -sg * sy; b.s += ns * pa; b.x += nx * pa; face = a * b.dir > 0 ? 'front' : 'rear'; }
+      else { const sg = c > 0 ? -1 : 1; ns = sg * sy; nx = sg * cy; b.s += ns * pc; b.x += nx * pc; face = 'side'; }
+      const vn = b.vs * ns + b.vx * nx; if (vn >= 0) continue;   // 이미 멀어지는 중
+      const v0 = [b.vs, b.vx];
+      b.vs -= ns * vn * 1.1; b.vx -= nx * vn * 1.1;
+      const ts = b.vs - ns * (b.vs * ns + b.vx * nx), tx = b.vx - nx * (b.vs * ns + b.vx * nx), tv = Math.hypot(ts, tx), ft = Math.min(tv, -vn * 0.4);
+      if (tv > 0) { b.vs -= ts / tv * ft; b.vx -= tx / tv * ft; }   // 기둥 마찰
+      b.wr += (a > 0 ? 1 : -1) * (c > 0 ? -1 : 1) * -vn * 0.15;   // 모서리로 맞으면 돈다
+      b.hit = true;
+      const dv = Math.hypot(b.vs - v0[0], b.vx - v0[1]);
+      if (b.postIdx === i || dv < 2) { b.postIdx = i; continue; }
+      b.postIdx = i;
+      b.impacts.push({ t: G.t, other: 'wall', wn: P.name, dv, speed: Math.hypot(v0[0], v0[1]), face });
+      const rec = { t: G.t, a: b.id, b: 'wall', s: P.s, x: P.x, vs: b.vs, sideA: face, sideB: 'none', dvA: dv, dvB: 0 };
       rec.debris = makeDebris(rec, b, { id: 'wall' }); C.impacts.push(rec);
       if (b.id === 'me') C.shakeT = C.tc;
       crashSound(dv / 30);
