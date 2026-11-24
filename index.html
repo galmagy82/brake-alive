@@ -846,8 +846,8 @@ const SCENARIOS = [
     mission: { time: 35 },
     // 교차로(100m) 정지선에서 신호를 기다리다 녹색불에 출발. 나는 1차로, 옆 2차로에는 반 대 앞에 선 차.
     // 교차로를 지나 70m(170m)에 '차로 줄어듦' 표지판, 120m(220m)부터 60m에 걸쳐 2차로가 1차로로 합쳐진다.
-    // 옆 차는 처음엔 나보다 느리게 가속하다가(내가 앞선다), 교차로를 지나면서 나보다 세게 가속해 나를 앞지르고,
-    // 좁아지는 곳 직전에 왼쪽 깜빡이를 켜고 1.5초 뒤 1차로로 들어온다
+    // 옆 차는 나보다 조금 세게(1.1배) 가속해 녹색불 뒤 나보다 아주 조금 앞서 달리고,
+    // 좁아지는 곳 직전에 왼쪽 깜빡이를 켜는 동시에 곧바로 1차로로 들어온다. 좁아지는 사선(차단봉)은 넘지 않는다
     road: { type: 'city4', half: 7.0, flat: 10.5, xMin: -6.3, xMax: 6.3, hillStart: 1e6, hillEnd: 1e6 + 1, crest: 1e6, H: 0,
       zoneStart: -1e4, zoneEnd: 1e4, intersection: 100, goal: 420, crossCars: false, laneDrop: { s0: 220, taper: 60, sign: 170 } },
     signal: { greenAt: 5 },   // 출발 5초 뒤 녹색불 (그 전에는 자동으로 브레이크가 걸려 있다)
@@ -857,7 +857,7 @@ const SCENARIOS = [
     oncoming: [
       // 옆 차: 2차로, 앞범퍼가 정지선 0.3m 뒤. 가속은 내 가속 × acc1 → 앞범퍼가 passS(교차로 건너편 끝)를 지나면 × acc2.
       // blinkS에서 왼쪽 깜빡이, delay초 뒤 옆으로 latV(m/s)씩 1차로로 (가속은 acc2 그대로)
-      { label: '끼어든 차', hazard: true, color: 0x8a6d1f, s: 100 - 10.6 - 0.3 - 2.15, x: 5.25, v: 0, drop: { acc1: 0.7, acc2: 1.8, passS: 100 + 7.2, blinkS: 200, delay: 1.5, latV: 2.5 } },
+      { label: '끼어든 차', hazard: true, color: 0x8a6d1f, s: 100 - 10.6 - 0.3 - 2.15, x: 5.25, v: 0, drop: { acc1: 1.1, acc2: 1.1, passS: 100 + 7.2, blinkS: 200, delay: 0, latV: 2.5 } },
       // 맞은편 신호 대기 차들: 건너편 정지선 뒤 두 차로에 4대씩 (녹색불에 출발)
       ...[-1.75, -5.25].flatMap(x => [0, 1, 2, 3].map(k => ({ s: 100 + 10.9 + 2.15 + k * 7 + (x < -3 ? 1.2 : 0), x, v: 14, queue: { acc: 2 } }))),
       ...Array.from({ length: 6 }, (_, k) => [{ s: 300 + k * 90, v: 15, x: -1.75 }, { s: 330 + k * 90, v: 13.5, x: -5.25 }]).flat(),
@@ -3136,9 +3136,11 @@ function dropMove(c, dt) {
   c.v = Math.min(V_MAX, c.v + 4.2 * (1 - c.v / (V_MAX * 1.08)) * k * dt);
   if (c.blinkT === undefined && c.s >= D.blinkS) { c.blinkT = G.t; ev('dropBlink', { idx: c.idx }); }
   if (!c.cut && c.blinkT !== undefined && G.t >= c.blinkT + D.delay) { c.cut = true; ev('dropCut', { idx: c.idx }); }
-  if (c.cut) {
-    const vx = c.x > 1.75 ? -D.latV : 0; c.x = Math.max(1.75, c.x + vx * dt); c.yaw = vx ? Math.atan2(-vx, c.v) : 0;
-  }
+  const x0 = c.x;
+  if (c.cut) c.x = Math.max(1.75, c.x - D.latV * dt);
+  const LD = R.laneDrop;   // 좁아지는 사선(차단봉) 안쪽에서만 달린다: 차로가 좁아지면 그 폭에 밀려 1차로 쪽으로 붙는다
+  if (LD && c.s + 2.2 > LD.s0) { const q = c.s + 2.2, edge = q >= LD.s0 + LD.taper ? 3.575 : (R.half - 0.2) + (3.575 - (R.half - 0.2)) * (q - LD.s0) / LD.taper; c.x = Math.max(1.75, Math.min(c.x, edge - 1.2)); }
+  const vx = (c.x - x0) / dt; c.yaw = Math.abs(vx) > 1e-3 ? Math.atan2(-vx, c.v) : 0;
   c.s += c.v * dt;
 }
 function ev(type, data) { G.events.push(Object.assign({ t: G.t, type }, data || {})); }
