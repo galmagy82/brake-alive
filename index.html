@@ -1892,11 +1892,19 @@ const TIRE_M = lambert(0x18191b), RIM_MS = [lambert(0xb9bcc2), lambert(0x6a6e75)
 const WELL_M = new THREE.MeshBasicMaterial({ color: 0x0a0b0c, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
 let rimK = 0;
 // bw: 차체 옆면 위치(가운데에서 m). 바퀴 바깥 면은 옆면보다 1cm 밖, 휠 아치는 옆면 바로 바깥(4mm)에 붙인다
-function wheels(g, xs, zs, r, bw) {
+// 휠 아치 모양: 반지름 Rw의 위쪽 원호. 차체 아래 끝(바퀴 중심 기준 높이 yb)까지 내려오게: 아래면 양옆을 늘린 ∩, 위면 그 높이에서 자른다
+function wellGeo(Rw, yb) {
+  const sh = new THREE.Shape();
+  if (yb < 0) { sh.moveTo(Rw, yb); sh.lineTo(Rw, 0); sh.absarc(0, 0, Rw, 0, Math.PI, false); sh.lineTo(-Rw, yb); }
+  else { const a = Math.asin(Math.min(yb / Rw, 0.95)); sh.moveTo(Rw * Math.cos(a), Rw * Math.sin(a)); sh.absarc(0, 0, Rw, a, Math.PI - a, false); }
+  sh.closePath(); return new THREE.ShapeGeometry(sh, 18);
+}
+// floorY: 바퀴 옆 차체의 아래 끝 높이 (휠 아치를 거기까지 내린다)
+function wheels(g, xs, zs, r, bw, floorY) {
   const w = 0.24, rimM = RIM_MS[rimK++ % RIM_MS.length];
   const tireG = new THREE.CylinderGeometry(r, r, w, 22), lipG = new THREE.TorusGeometry(r * 0.9, r * 0.1, 6, 22);
   const rimG = new THREE.CylinderGeometry(r * 0.6, r * 0.6, 0.02, 20), hubG = new THREE.CylinderGeometry(r * 0.15, r * 0.15, 0.05, 10);
-  const spokeG = new THREE.BoxGeometry(0.02, r * 0.5, r * 0.13), wellG = new THREE.CircleGeometry(r * 1.16, 18, 0, Math.PI);
+  const spokeG = new THREE.BoxGeometry(0.02, r * 0.5, r * 0.13), wellG = wellGeo(r * 1.16, (floorY ?? r) - r);
   g.wheelList = g.wheelList || [];
   xs.forEach(x => zs.forEach(z => {
     const sg = Math.sign(x) || 1, wg = new THREE.Group(); wg.position.set(bw ? sg * (bw + 0.01 - w / 2) : x, r, z); g.add(wg);
@@ -1977,7 +1985,7 @@ function makeCar(color, lights, type) {
   const outer = new THREE.Group(), g = new THREE.Group(); outer.add(g);
   g.add(new THREE.Mesh(G0.paint, new THREE.MeshPhongMaterial({ color, shininess: 60, specular: 0x3a3a3a })));   // 차체: 약한 광택
   g.add(new THREE.Mesh(G0.glass, CAR_GLASS_M), new THREE.Mesh(G0.trim, CAR_TRIM_M), new THREE.Mesh(G0.head, CAR_HEAD_M), new THREE.Mesh(G0.tail, CAR_TAIL_M), new THREE.Mesh(G0.plate, CAR_PLATE_M));
-  wheels(g, [-T.bw + 0.06, T.bw - 0.06], [-T.wz, T.wz], T.r, T.bw);
+  wheels(g, [-T.bw + 0.06, T.bw - 0.06], [-T.wz, T.wz], T.r, T.bw, T.body[0][1] - 0.05);
   if (lights) [-1, 1].forEach(sg => { const h0 = halo(1.7, 0.95); h0.position.set(sg * (T.W / 2 - 0.32), T.light, -hz - 0.14); g.add(h0); });
   if (type === 'ptruck') {   // 짐칸: 낮은 옆판 + 파란 덮개 씌운 짐더미 + 뒤쪽 상자 두 개 (차 안쪽 좌표: 앞이 -z)
     const gate = lambert(0xd9d6cf);
@@ -1993,7 +2001,7 @@ function makeCarOld(color, lights) {   // 예전 상자 모양 (?look=old)
   const outer = new THREE.Group(), g = new THREE.Group(); outer.add(g);
   g.add(box(1.8, 0.62, 4.3, lambert(color), 0, 0.64, 0));
   g.add(box(1.56, 0.56, 2.1, lambert(0x1a2129), 0, 1.22, 0.25));
-  wheels(g, [-0.84, 0.84], [-1.35, 1.35], 0.33, 0.9);
+  wheels(g, [-0.84, 0.84], [-1.35, 1.35], 0.33, 0.9, 0.33);
   const hl = basic(0xfff3d1), tl = basic(0x8a1010);
   g.add(box(0.36, 0.13, 0.05, hl, -0.56, 0.74, -2.16), box(0.36, 0.13, 0.05, hl, 0.56, 0.74, -2.16));
   g.add(box(0.36, 0.12, 0.05, tl, -0.6, 0.8, 2.16), box(0.36, 0.12, 0.05, tl, 0.6, 0.8, 2.16));
@@ -2092,7 +2100,7 @@ function makeTruck() {
   outer.add(box(2.3, 0.7, 1.0, lambert(0x1a2129), 0, 2.2, -5.0));
   outer.add(box(2.5, 3.0, 7.4, lambert(0xd5d0c4), 0, 2.05, 0.9));
   outer.add(box(2.2, 0.35, 9.6, lambert(0x1c1f22), 0, 0.55, -0.2));
-  wheels(outer, [-1.05, 1.05], [-3.8], 0.48, 1.2); wheels(outer, [-1.05, 1.05], [2.2, 3.4], 0.48, 1.25);   // 앞바퀴는 운전실, 뒷바퀴는 짐칸 폭에 맞춘다
+  wheels(outer, [-1.05, 1.05], [-3.8], 0.48, 1.2, 0.44); wheels(outer, [-1.05, 1.05], [2.2, 3.4], 0.48, 1.25, 0.53);   // 앞바퀴는 운전실, 뒷바퀴는 짐칸 폭에 맞춘다
   // 미등: 해 질 녘이라 기본으로 켜져 있다 (밝은 빨강)
   const tl = basic(0xff2a1a);
   outer.add(box(0.3, 0.18, 0.05, tl, -1.0, 0.9, 4.62), box(0.3, 0.18, 0.05, tl, 1.0, 0.9, 4.62));
@@ -2124,7 +2132,7 @@ function makeVan() {   // 정차한 승합차: 키가 커서 그 앞에 선 사�
   outer.add(box(1.9, 1.75, 4.8, lambert(0xe6e3dc), 0, 1.25, 0.2));            // 차체
   outer.add(box(1.92, 0.5, 3.6, lambert(0x1a2129), 0, 1.65, 0.1));            // 창문 띠
   outer.add(box(1.8, 0.25, 4.6, lambert(0x1c1f22), 0, 0.35, 0));
-  wheels(outer, [-0.85, 0.85], [-1.55, 1.6], 0.36, 0.95);
+  wheels(outer, [-0.85, 0.85], [-1.55, 1.6], 0.36, 0.95, 0.315);
   const tl = basic(0xb01515);
   outer.add(box(0.22, 0.4, 0.05, tl, -0.8, 1.1, 2.62), box(0.22, 0.4, 0.05, tl, 0.8, 1.1, 2.62));
   {   // 브레이크등 (서 있는 동안 켜진다)
@@ -2156,7 +2164,7 @@ function makeBus() {   // 시내버스: 길고 높아 뒤따르는 차를 가린
   outer.add(box(2.52, 1.0, 10.0, dark, 0, 2.4, 0.4));                               // 옆 창문 띠
   outer.add(box(2.3, 1.4, 0.05, dark, 0, 2.3, -5.62));                              // 앞 유리
   outer.add(box(2.3, 0.35, 0.06, basic(0xffb020), 0, 3.0, -5.63));                  // 행선지 표시
-  wheels(outer, [-1.1, 1.1], [-3.6, 3.4], 0.5, 1.25);
+  wheels(outer, [-1.1, 1.1], [-3.6, 3.4], 0.5, 1.25, 0.37);
   const hl = basic(0xfff3d1); outer.add(box(0.36, 0.16, 0.05, hl, -0.9, 0.85, -5.82), box(0.36, 0.16, 0.05, hl, 0.9, 0.85, -5.82));
   [-0.9, 0.9].forEach(x => { const g = halo(1.9, 0.95); g.position.set(x, 0.85, -5.95); outer.add(g); });
   const tl = basic(0xb01515);
