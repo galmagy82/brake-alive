@@ -3591,6 +3591,13 @@ const hitRisk = x => Math.max(x.side ? sideRisk(x.dv) : fatalRisk(x.dv), jokschR
    첫 충돌에만 붙인다. 충돌 순간의 사실(위치·신호·직전 3초의 옆 움직임)로 도표를 고른다. 맞는 도표가 없으면 붙이지 않는다.
    차로 변경 판정: 충돌 전 3초 안에 옆으로 초당 0.5m 넘게 움직였으면 '차로를 바꾸던 중'. 두 차의 시작 시각이 1초 안이면 '동시' */
 const FAULT_LAT = 0.5, FAULT_WIN = 3, FAULT_SIM = 1;
+const FAULT_CUT_V = 1.5, FAULT_CUT_GAP = 4.4;   // 급진로변경 판정: 옆 속도(m/s), 앞뒤 거리(m, 차 한 대 길이)
+function latMax(get) {   // 충돌 직전 FAULT_WIN초 동안 가장 빠른 옆 속도 (0.25초 간격)
+  const F = G.frames, tEnd = G.end.t; let best = 0, prev = null;
+  for (let i = F.length - 1; i >= 0 && F[i].t >= tEnd - FAULT_WIN; i--) { if (F[i].t > tEnd) continue; const x = get(F[i]);
+    if (!prev) { prev = [F[i].t, x]; continue; } if (prev[0] - F[i].t >= 0.25) { best = Math.max(best, Math.abs(prev[1] - x) / (prev[0] - F[i].t)); prev = [F[i].t, x]; } }
+  return best;
+}
 function latStart(get) {   // 충돌 직전 FAULT_WIN초의 옆 움직임: 마지막으로 이어진 '움직이는 구간'의 시작 시각 (없으면 null)
   const F = G.frames, tEnd = G.end.t, pts = [];
   for (let i = F.length - 1; i >= 0 && F[i].t >= tEnd - FAULT_WIN; i--) { if (F[i].t > tEnd) continue; const x = get(F[i]); if (isFinite(x)) pts.unshift([F[i].t, x]); }
@@ -3602,7 +3609,7 @@ function latStart(get) {   // 충돌 직전 FAULT_WIN초의 옆 움직임: 마�
   }
   return start;
 }
-const FAULT_NOTE = ' 과실은 <a href="https://accident.knia.or.kr/" target="_blank" rel="noopener">손해보험협회 「자동차사고 과실비율 인정기준」</a>의 해당 도표 값이며, \'기본\'은 상황에 따라 가감되는 기본값입니다. 참고용입니다.';
+const FAULT_NOTE = ' 과실은 <a href="https://accident.knia.or.kr/" target="_blank" rel="noopener">손해보험협회 「자동차사고 과실비율 인정기준」</a>의 해당 도표 값입니다. \'(추정)\'은 기준표의 기본값으로, 실제로는 상황에 따라 가감됩니다. 참고용입니다.';
 function carFault() {   // { me: {pct, chart, base}, [상대 id]: {...} } 또는 null
   const C = G.ch, r0 = C && C.impacts[0]; if (!r0 || r0.b === 'wall' || (r0.a !== 'me' && r0.b !== 'me')) return null;
   const id = r0.a === 'me' ? r0.b : r0.a, e = G.end, p = C.byId.me, o = C.byId[id]; if (!o) return null;
@@ -3616,12 +3623,18 @@ function carFault() {   // { me: {pct, chart, base}, [상대 id]: {...} } 또는
   if (oncoming) { if (fx.px < 0) return out(100, '차31-1', false); if (fx.ox > 0) return out(0, '차31-1', false); return null; }   // 중앙선 침범
   if (fx.os > fx.ps && Math.abs(fx.px - fx.ox) < 1.2 && !(car && car.parked) && !(id === 'truck' && SC.truck.parked)) return out(100, '차41-1', false);   // 같은 차로 앞차를 뒤에서 추돌 (차로 변경보다 먼저 본다)
   const meMv = latStart(f => f.px), oMv = car ? latStart(f => f.cx ? f.cx[ci] : NaN) : null;
+  const cutIn = () => (car && (car.drop || car.merge)) ? out(40, '차43-1', true) : out(30, '차43-2', true);   // 상대가 끼어듦 (차로 감소·합류는 차43-1)
+  if (oMv !== null && meMv === null) return cutIn();
+  // 내 앞면이 상대 뒷면에 부딪혔으면 좌우가 어긋나도 추돌 (상대가 내 앞으로 끼어든 경우는 위에서 처리)
+  const meId = 'me', faceMe = r0.a === meId ? r0.sideA : r0.sideB, faceO = r0.a === meId ? r0.sideB : r0.sideA;
+  if (faceMe === 'front' && faceO === 'rear') return out(100, '차41-1', false);
   if (meMv !== null && oMv !== null && Math.abs(meMv - oMv) <= FAULT_SIM) return out(50, '차43-3', true);   // 동시 진로변경
-  if (meMv !== null && oMv === null) return out(70, '차43-2', true);                                       // 내가 진로변경
-  if (oMv !== null && meMv === null || (oMv !== null && meMv !== null)) {
-    const first = meMv === null ? 'o' : oMv < meMv ? 'o' : 'me';
-    if (first === 'o') return (car && (car.drop || car.merge)) ? out(40, '차43-1', true) : out(30, '차43-2', true);   // 상대가 끼어듦 (차로 감소·합류는 차43-1)
-    return out(70, '차43-2', true);
+  if (oMv !== null && meMv !== null && oMv < meMv) return cutIn();
+  if (meMv !== null) {   // 내가 진로변경
+    // 급진로변경: 옆으로 초당 FAULT_CUT_V m 넘게 꺾었고 상대와 앞뒤 거리가 차 한 대 길이 이내 → 상대가 피할 수 없었다 (2019 기준 개정: 예측·회피 어려운 사고는 일방과실)
+    if (latMax(f => f.px) > FAULT_CUT_V && Math.abs(fx.os - fx.ps) < FAULT_CUT_GAP) return { me: { pct: 100, label: '급진로변경' }, [id]: { pct: 0, label: '급진로변경' } };
+    const banned = R.type !== 'city4' && fx.ps > R.zoneStart && fx.ps < R.zoneEnd;   // 국도 앞지르기 금지 구간(노란 두 줄 실선)에서 들어옴: 진로변경 금지장소 +20
+    return out(banned ? 90 : 70, '차43-2', true);
   }
   if (car && car.parked || (id === 'truck' && SC.truck.parked)) {   // 주정차 차량 추돌
     return id === 'truck' && /불법/.test(SC.truck.label) ? out(90, '차42-2', true) : out(100, '차42-2', false);
@@ -3645,11 +3658,11 @@ function pedFault(q) {   // 보행자 한 사람: { car: 차 과실 %, chart, ba
   if (R.type === 'alley') return q.walkS ? { car: 100, chart: '보27-1', base: false } : { car: 90, chart: '보23', base: true };   // 골목: 길 따라 걷던 사람 / 뛰어나온 아이 (급진입+5 주택가−5 구분없음−5 어린이−5)
   return null;
 }
-const faultText = (f, mine) => `${f.base ? '기본 ' : ''}과실 ${mine}% · 도표 ${f.chart}`;
+const faultText = (f, mine) => `과실 ${mine}%` + (f.label ? ` (${f.label})` : f.base ? ' (추정)' : '');   // 도표 번호는 보이지 않는다 (사용자 결정)
 function injuryRows() {
   if (G.end.type === 'ped') {   // 부딪힌 보행자마다: 차의 충돌 속도로 사망 확률
     return G.peds.filter(q => q.hitSpeed).map(q => { const v = Math.round(q.hitSpeed * 3.6), f = pedFault(q);
-      return { who: q.label, stat: `충돌 속도 ${v}km/h`, risk: pedRisk(v), hits: [], fault: f ? `${f.base ? '기본 ' : ''}과실 보행자 ${100 - f.car} : 차 ${f.car} · 도표 ${f.chart}` : '' }; });
+      return { who: q.label, stat: `충돌 속도 ${v}km/h`, risk: pedRisk(v), hits: [], fault: f ? `과실 보행자 ${100 - f.car}% : 차 ${f.car}%${f.base ? ' (추정)' : ''}` : '' }; });
   }
   const FAULT = carFault(), r0 = G.ch.impacts[0];
   const C = G.ch, involved = C.bodies.filter(b => b.impacts.length && !(b.car && b.car.parked) && !(b.id === 'truck' && SC.truck.parked));   // 빈 주차 차는 사람이 없다
