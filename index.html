@@ -1726,6 +1726,7 @@ function trafficLight(s, x, yaw, lit, unprotected, role) {
   // 가로형 신호등: 길가 기둥에서 도로 위로 팔을 뻗어, 신호등이 차로 위(차로 경계 3.5m 지점)에 오게 한다
   // (옆 차로의 큰 차에 가려지지 않도록). 안쪽 좌표에서 -x가 도로 쪽이다
   const mast = lambert(0x6b6f74), armL = Math.abs(x) - 3.5;
+  ROAD_POSTS.push({ s, x, r: 0.14, name: '신호등' });   // 사고 후 차·사람이 기둥을 뚫지 않게 (postHits)
   const post = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 6.4, 8), mast); post.position.y = 3.2; grp.add(post);
   grp.add(box(armL + 0.3, 0.14, 0.14, mast, -armL / 2, 6.1, 0));
   const head = new THREE.Group(); head.position.set(-armL, 5.75, 0); grp.add(head);
@@ -1790,6 +1791,7 @@ function buildSignalCrosswalk() {
 // 보행자 신호등: 기둥 위 상자에 빨간 사람(서 있음)·녹색 사람(걷는 중). 앞뒤 양쪽에서 보인다
 function pedSignal(s, x, yaw) {
   const grp = new THREE.Group(), mast = lambert(0x6b6f74);
+  ROAD_POSTS.push({ s, x, r: 0.1, name: '신호등' });
   const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 3.2, 8), mast); post.position.y = 1.6; grp.add(post);
   grp.add(box(0.42, 0.8, 0.26, lambert(0x1b1d20), 0, 3.1, 0));
   const man = (col, walk) => texFrom(64, 64, g => {
