@@ -1016,7 +1016,7 @@ function buildWorld() {
   }
   if (SC.sunAhead) sun.position.set(30, 75, -2100); else sun.position.set(-420, 60, -1900);   // 07: 해 질 녘 해가 출구 정면에
   buildCurve();   // 굽은 도로면 중심선을 먼저 계산
-  world = new THREE.Group(); scene.add(world); alleyBld = alleyHide = alleyFoot = null; tunnelExit = tunnelGrp = tunnelFoot = tunnelMouth = null; envIn = null; curveHill = null;
+  world = new THREE.Group(); scene.add(world); alleyBld = alleyHide = alleyFoot = null; poleWires = null; tunnelExit = tunnelGrp = tunnelFoot = tunnelMouth = null; envIn = null; curveHill = null;
   ROAD_POSTS = [];   // 골목은 길가 기둥 충돌이 없다 (나무를 만들 때 채운다)
   buildGround(); buildRoad(); buildTrees(); buildGoal();
   if (R.type === 'city4') {
@@ -1728,7 +1728,8 @@ function treePoles() {
       });
     }
     const wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.Float32BufferAttribute(seg, 3));
-    world.add(pole, bar, new THREE.LineSegments(wg, new THREE.LineBasicMaterial({ color: 0x222222 }))); return;
+    poleWires = new THREE.LineSegments(wg, new THREE.LineBasicMaterial({ color: 0x222222 }));   // 리플레이에서는 숨긴다 (alleyReplayView)
+    world.add(pole, bar, poleWires); return;
   }
   // 가로등: 기둥(높이 8m) + 도로 쪽으로 뻗은 팔(2.2m) + 등. 저녁에는 등이 밝게, 한낮에는 회색
   const UP_Y = new THREE.Vector3(0, 1, 0), metal = lambert(0x8a8d91), lit = SC.daylight === 'noon' ? lambert(0xc9ccd0) : basic(0xfff1c8);
@@ -3890,8 +3891,10 @@ function captionFor(e) {
   return '';
 }
 let alleyBld = null, alleyHide = null, alleyFoot = null;   // 골목 주택가: 건물 / 배경(아파트·전봇대) / 건물 터 판
+let poleWires = null;   // 국도 전봇대 전선 (리플레이에서 숨김)
 function alleyReplayView(on) {   // 리플레이에서는 건물과 배경을 숨기고 건물 터만 보여 준다
   if (alleyBld) alleyBld.visible = !on; if (alleyHide) alleyHide.visible = !on; if (alleyFoot) alleyFoot.visible = on;
+  if (poleWires) poleWires.visible = !on;   // 국도 전선도 리플레이에서는 숨긴다 (기둥·가로대는 보인다)
   if (tunnelGrp) tunnelGrp.visible = !on; if (tunnelFoot) tunnelFoot.visible = on;   // 터널: 벽·천장 대신 벽 자리 턱만
   if (curveHill) { if (curveHill.hill) curveHill.hill.visible = !on; if (curveHill.flat) curveHill.flat.visible = on; if (curveHill.foot) curveHill.foot.visible = on; if (curveHill.trees) curveHill.trees.visible = !on; }   // 굽은 국도: 산을 내리고 산 자리만
 }
