@@ -1694,7 +1694,23 @@ function treePoles() {
   if (R.type !== 'city4') {   // 전봇대
     const pole = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.13, 0.16, 9, 6), lambert(0x6d6a66), n);
     L.forEach((o, i) => { wpos(o.s, o.x, h(o.s) + 4.2, p); m.compose(p, q.identity(), sc); pole.setMatrixAt(i, m); });
-    world.add(pole); return;
+    // 꼭대기 가로대(1.6m)와 전봇대 사이에 처진 전선 세 가닥 (같은 쪽 이웃 전봇대끼리, 굽은 도로를 따라)
+    const UP = new THREE.Vector3(0, 1, 0), bar = new THREE.InstancedMesh(new THREE.BoxGeometry(1.6, 0.12, 0.12), lambert(0x5b5853), n);
+    L.forEach((o, i) => { q.setFromAxisAngle(UP, -wyaw(o.s)); wpos(o.s, o.x, h(o.s) + 8.3, p); m.compose(p, q, sc); bar.setMatrixAt(i, m); });
+    const seg = [], top = 8.35, sag = 0.6;
+    for (let i = 0; i + 1 < n; i++) {
+      const A = L[i], B = L[i + 1]; if (Math.sign(A.x) !== Math.sign(B.x)) continue;
+      [-0.6, 0, 0.6].forEach(dx => {
+        let prev = null;
+        for (let k = 0; k <= 8; k++) {
+          const t = k / 8, ss = A.s + (B.s - A.s) * t, xx = A.x + (B.x - A.x) * t + dx, y = h(A.s) + (h(B.s) - h(A.s)) * t + top - Math.sin(t * Math.PI) * sag;
+          const w = wpos(ss, xx, y), pt = [w.x, w.y, w.z];
+          if (prev) seg.push(...prev, ...pt); prev = pt;
+        }
+      });
+    }
+    const wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.Float32BufferAttribute(seg, 3));
+    world.add(pole, bar, new THREE.LineSegments(wg, new THREE.LineBasicMaterial({ color: 0x222222 }))); return;
   }
   // 가로등: 기둥(높이 8m) + 도로 쪽으로 뻗은 팔(2.2m) + 등. 저녁에는 등이 밝게, 한낮에는 회색
   const UP_Y = new THREE.Vector3(0, 1, 0), metal = lambert(0x8a8d91), lit = SC.daylight === 'noon' ? lambert(0xc9ccd0) : basic(0xfff1c8);
