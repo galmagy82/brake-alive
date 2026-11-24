@@ -3609,7 +3609,7 @@ function latStart(get) {   // 충돌 직전 FAULT_WIN초의 옆 움직임: 마�
   }
   return start;
 }
-const FAULT_NOTE = ' 과실은 <a href="https://accident.knia.or.kr/" target="_blank" rel="noopener">손해보험협회 「자동차사고 과실비율 인정기준」</a>의 해당 도표 값입니다. \'(추정)\'은 기준표의 기본값으로, 실제로는 상황에 따라 가감됩니다. 참고용입니다.';
+const FAULT_NOTE = ' 과실은 <a href="https://accident.knia.or.kr/" target="_blank" rel="noopener">손해보험협회 「자동차사고 과실비율 인정기준」</a>의 해당 도표 값입니다. \'기본 과실\'은 기준표의 기본값으로, 실제로는 상황에 따라 가감됩니다. 참고용입니다.';
 function carFault() {   // { me: {pct, chart, base}, [상대 id]: {...} } 또는 null
   const C = G.ch, r0 = C && C.impacts[0]; if (!r0 || r0.b === 'wall' || (r0.a !== 'me' && r0.b !== 'me')) return null;
   const id = r0.a === 'me' ? r0.b : r0.a, e = G.end, p = C.byId.me, o = C.byId[id]; if (!o) return null;
@@ -3658,11 +3658,11 @@ function pedFault(q) {   // 보행자 한 사람: { car: 차 과실 %, chart, ba
   if (R.type === 'alley') return q.walkS ? { car: 100, chart: '보27-1', base: false } : { car: 90, chart: '보23', base: true };   // 골목: 길 따라 걷던 사람 / 뛰어나온 아이 (급진입+5 주택가−5 구분없음−5 어린이−5)
   return null;
 }
-const faultText = (f, mine) => `과실 ${mine}%` + (f.label ? ` (${f.label})` : f.base ? ' (추정)' : '');   // 도표 번호는 보이지 않는다 (사용자 결정)
+const faultText = (f, mine) => `${f.base && !f.label ? '기본 ' : ''}과실 ${mine}%` + (f.label ? ` (${f.label})` : '');   // 도표 번호는 보이지 않는다 (사용자 결정)
 function injuryRows() {
   if (G.end.type === 'ped') {   // 부딪힌 보행자마다: 차의 충돌 속도로 사망 확률
     return G.peds.filter(q => q.hitSpeed).map(q => { const v = Math.round(q.hitSpeed * 3.6), f = pedFault(q);
-      return { who: q.label, stat: `충돌 속도 ${v}km/h`, risk: pedRisk(v), hits: [], fault: f ? `과실 보행자 ${100 - f.car}% : 차 ${f.car}%${f.base ? ' (추정)' : ''}` : '' }; });
+      return { who: q.label, stat: `충돌 속도 ${v}km/h`, risk: pedRisk(v), hits: [], fault: f ? `${f.base ? '기본 ' : ''}과실 보행자 ${100 - f.car}% : 차 ${f.car}%` : '' }; });
   }
   const FAULT = carFault(), r0 = G.ch.impacts[0];
   const C = G.ch, involved = C.bodies.filter(b => b.impacts.length && !(b.car && b.car.parked) && !(b.id === 'truck' && SC.truck.parked));   // 빈 주차 차는 사람이 없다
