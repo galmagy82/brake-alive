@@ -196,7 +196,9 @@ button.card:hover, button.card:focus-visible { border-color: var(--paint); trans
 @keyframes rowin { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 .inj-who { font-weight: 700; font-size: 16px; }
 .inj-stat { white-space: pre-line; grid-column: 1; font-family: var(--f-num); font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.inj-out { grid-column: 2; grid-row: 1 / 3; display: grid; justify-items: end; gap: 3px; font-family: var(--f-num); font-weight: 600; font-size: 30px; line-height: 1; font-variant-numeric: tabular-nums; color: var(--paper); }
+.inj-fault { grid-column: 1; justify-self: start; margin-top: 5px; padding: 2px 8px; border: 1px solid rgba(242,183,5,.55); border-radius: 3px; background: rgba(242,183,5,.1); color: #f2c94c; font-size: 12.5px; font-weight: 600; }
+.inj-fault.chain { border-color: var(--asphalt-3); background: none; color: var(--muted); font-weight: 500; }
+.inj-out { grid-column: 2; grid-row: 1 / 4; display: grid; justify-items: end; gap: 3px; font-family: var(--f-num); font-weight: 600; font-size: 30px; line-height: 1; font-variant-numeric: tabular-nums; color: var(--paper); }
 .inj-out small { font-family: var(--f-body); font-weight: 500; font-size: 11px; letter-spacing: .08em; color: var(--muted); }
 .inj-out.high { color: var(--danger); }
 .inj-after { color: var(--paper); font-weight: 500; }
@@ -3647,7 +3649,7 @@ const faultText = (f, mine) => `${f.base ? '기본 ' : ''}과실 ${mine}% · 도
 function injuryRows() {
   if (G.end.type === 'ped') {   // 부딪힌 보행자마다: 차의 충돌 속도로 사망 확률
     return G.peds.filter(q => q.hitSpeed).map(q => { const v = Math.round(q.hitSpeed * 3.6), f = pedFault(q);
-      return { who: q.label, stat: `충돌 속도 ${v}km/h` + (f ? `\n과실 보행자 ${100 - f.car} : 차 ${f.car}${f.base ? ' (기본)' : ''} · 도표 ${f.chart}` : ''), risk: pedRisk(v), hits: [], fault: !!f }; });
+      return { who: q.label, stat: `충돌 속도 ${v}km/h`, risk: pedRisk(v), hits: [], fault: f ? `${f.base ? '기본 ' : ''}과실 보행자 ${100 - f.car} : 차 ${f.car} · 도표 ${f.chart}` : '' }; });
   }
   const FAULT = carFault(), r0 = G.ch.impacts[0];
   const C = G.ch, involved = C.bodies.filter(b => b.impacts.length && !(b.car && b.car.parked) && !(b.id === 'truck' && SC.truck.parked));   // 빈 주차 차는 사람이 없다
@@ -3674,11 +3676,13 @@ function renderInjury(el, animate) {
     const st = document.createElement('span'); st.className = 'inj-stat';
     st.textContent = x.stat ? x.stat : x.hits.length === 1 ? `주행 ${x.hits[0].speed}km/h · ${x.hits[0].side ? '옆면 ' : ''}충격 ${x.hits[0].dv}km/h`
       : x.hits.map((hh, k) => `${k + 1}차 ${hh.with} · ${hh.speed >= 1 ? `주행 ${hh.speed}km/h` : '정지 상태에서'} · ${hh.side ? '옆면 ' : ''}충격 ${hh.dv}km/h`).join('\n');
-    if (typeof x.fault === 'string' && x.fault) st.textContent += '\n' + x.fault;   // 과실비율 (첫 충돌만)
+
     const out = document.createElement('span'); out.className = 'inj-out' + (x.risk >= 0.1 ? ' high' : '');
     const lab = document.createElement('small'); lab.textContent = '사망 확률';
     out.append(lab, document.createTextNode(pct));
-    d.append(who, st, out); el.appendChild(d);
+    d.append(who, st, out);
+    if (x.fault) { const fl = document.createElement('span'); fl.className = 'inj-fault' + (x.faultOn || x.stat ? '' : ' chain'); fl.textContent = x.fault; d.appendChild(fl); }   // 과실비율: 따로 눈에 띄는 칸 (첫 충돌만)
+    el.appendChild(d);
   });
 }
 function crashUpdate(dt) {
@@ -3708,7 +3712,7 @@ function crashUpdate(dt) {
       + '의 경험식(위험 = (Δv ÷ 114km/h)⁴) 중 더 높은 값을 씁니다.'
       + (G.end.injury.some(x => x.hits.length > 1) ? ' 여러 번 부딪힌 경우는 각 충돌의 위험을 합친 추정치입니다.' : '')
       + ' 실제 결과는 차종, 나이, 충돌 각도에 따라 달라집니다.'
-      + (G.end.injury.some(x => x.faultOn || x.fault === true) ? FAULT_NOTE : '');
+      + (G.end.injury.some(x => x.faultOn) ? FAULT_NOTE : '');
     setTimeout(() => { if (state === 'crashed') show('crash', true); }, 700);
   }
 }
