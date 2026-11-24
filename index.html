@@ -4264,8 +4264,8 @@ function renderGrid() {
       st.classList.add('prog');
       const b = document.createElement('b'); b.className = 'rank' + (tier > RANKS.length ? ' master' : tier ? '' : ' none');
       b.textContent = tier > RANKS.length ? 'MASTER' : tier ? RANKS[tier - 1] : '\u00a0'; st.appendChild(b);
-      const bar = document.createElement('span'); bar.className = 'bar'; if (tier > RANKS.length) bar.style.visibility = 'hidden';
-      for (let k = 0; k < MASTER_N; k++) { const c = document.createElement('i'); if (k < inT) c.className = 'on'; bar.appendChild(c); }
+      const bar = document.createElement('span'); bar.className = 'bar'; const fill = tier > RANKS.length ? MASTER_N : inT;   // 마스터: 10칸 모두 녹색
+      for (let k = 0; k < MASTER_N; k++) { const c = document.createElement('i'); if (k < fill) c.className = 'on'; bar.appendChild(c); }
       st.appendChild(bar);
     }
     meta.append(num, ttl, st); card.append(th, meta);
