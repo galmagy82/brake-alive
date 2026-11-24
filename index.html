@@ -163,17 +163,17 @@ button.card:hover, button.card:focus-visible { border-color: var(--paint); trans
 .card .thumb { aspect-ratio: 16 / 9; max-width: 100%; background: var(--asphalt-2) center / cover no-repeat; display: grid; place-items: center; color: var(--muted); font-size: 12px; letter-spacing: .12em; }
 .card .meta { display: grid; gap: 3px; padding: 10px 12px 12px; }
 .card .num { font-family: var(--f-num); font-size: 11px; letter-spacing: .12em; color: var(--paint); }
-.card .ttl { font-weight: 700; font-size: 15px; }
+.card .ttl { font-weight: 700; font-size: 15px; display: flex; align-items: center; gap: 7px; min-width: 0; }
+.card .ttl .tt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .card .st { font-family: var(--f-num); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .card .st.ok { color: var(--safe); }
 .card .st.bad { color: var(--danger); }
-.card .st.prog { display: flex; flex-direction: column; align-items: stretch; gap: 4px; margin-top: 1px; min-width: 0; }
+.card .st.prog { display: block; margin-top: 4px; min-width: 0; }
 .card .st.prog .bar { display: flex; gap: 2px; height: 8px; min-width: 0; }
 .card .st.prog .bar i { flex: 1; background: var(--asphalt-3); border-radius: 1px; }
 .card .st.prog .bar i.on { background: var(--safe); }
-.card .st.prog .rank { align-self: flex-start; padding: 0 6px; border: 1px solid var(--safe); border-radius: 3px; color: var(--safe); font-weight: 600; font-size: 11px; line-height: 15px; white-space: nowrap; }
-.card .st.prog .rank.none { border-color: transparent; }
-.card .st.prog .rank.master { border-color: #e2b84a; color: #f3cf6a; background: rgba(226,184,74,.12); letter-spacing: .14em; }
+.card .ttl .rank { flex: none; padding: 0 6px; border: 1px solid var(--safe); border-radius: 3px; color: var(--safe); font-weight: 600; font-size: 11px; line-height: 15px; white-space: nowrap; }
+.card .ttl .rank.master { border-color: #e2b84a; color: #f3cf6a; background: rgba(226,184,74,.12); letter-spacing: .14em; }
 .card .st.master { justify-self: start; margin-top: 1px; padding: 1px 8px; border: 1px solid #e2b84a; border-radius: 3px; color: #f3cf6a; background: rgba(226,184,74,.12); font-weight: 600; letter-spacing: .14em; font-size: 11px; }
 .card.soon { opacity: .45; }
 @media (prefers-reduced-motion: reduce) { button.card { transition: none; } button.card:hover { transform: none; } }
@@ -4275,15 +4275,14 @@ function renderGrid() {
     if (sc.ready && thumbs[sc.id]) th.style.backgroundImage = `url(${thumbs[sc.id]})`; else if (!sc.ready) th.textContent = '준비 중';
     const meta = document.createElement('div'); meta.className = 'meta';
     const num = document.createElement('span'); num.className = 'num'; num.textContent = sc.id;
-    const ttl = document.createElement('span'); ttl.className = 'ttl'; ttl.textContent = sc.ready ? sc.title : '\u00a0';   // 준비 중인 시나리오는 가제목을 보이지 않는다 (칸 높이만 유지)
+    const ttl = document.createElement('span'); ttl.className = 'ttl'; const tt = document.createElement('span'); tt.className = 'tt'; tt.textContent = sc.ready ? sc.title : '\u00a0'; ttl.appendChild(tt);   // 준비 중인 시나리오는 가제목을 보이지 않는다 (칸 높이만 유지)
     const st = document.createElement('span'); st.className = 'st';
     const r = records[sc.id];
     if (!sc.ready) st.textContent = '준비 중';
-    else {   // 위 줄: 호칭 배지(예전 MASTER 자리, 없으면 빈칸). 아래 줄: 지금 단계의 통과 횟수 막대 (10칸). 40번이면 금색 MASTER, 막대 없음
+    else {   // 호칭 배지는 제목 오른쪽에 (없으면 안 붙인다). 제목 아래 줄: 지금 단계의 통과 횟수 막대 (10칸). 40번이면 금색 MASTER + 막대 가득
       const n = r ? r.clear : 0, tier = Math.min(Math.floor(n / MASTER_N), RANKS.length + 1), inT = n % MASTER_N;
       st.classList.add('prog');
-      const b = document.createElement('b'); b.className = 'rank' + (tier > RANKS.length ? ' master' : tier ? '' : ' none');
-      b.textContent = tier > RANKS.length ? 'MASTER' : tier ? RANKS[tier - 1] : '\u00a0'; st.appendChild(b);
+      if (tier) { const b = document.createElement('b'); b.className = 'rank' + (tier > RANKS.length ? ' master' : ''); b.textContent = tier > RANKS.length ? 'MASTER' : RANKS[tier - 1]; ttl.appendChild(b); }
       const bar = document.createElement('span'); bar.className = 'bar'; const fill = tier > RANKS.length ? MASTER_N : inT;   // 마스터: 10칸 모두 녹색
       for (let k = 0; k < MASTER_N; k++) { const c = document.createElement('i'); if (k < fill) c.className = 'on'; bar.appendChild(c); }
       st.appendChild(bar);
