@@ -3831,7 +3831,7 @@ function replayUpdate(dt) {
     const e = RP.events.find(x => !x.done && x.t <= next);
     if (e) { e.done = true; RP.t = e.t; const c = captionFor(e); if (c) { $('caption').textContent = c; show('caption', false); void $('caption').offsetWidth; show('caption', true); RP.pause = 1.6 + c.length * 0.045; } }
     else RP.t = next;
-    if (RP.t >= RP.end && RP.pause <= 0) { RP.t = RP.end; RP.after = 0.6; }
+    if (RP.t >= RP.end && RP.pause <= 0) { RP.t = RP.end; RP.after = 1.6; }   // 리플레이가 끝나고 결과 창이 뜨기까지 1.6초
   }
   const f = frameAt(RP.t), C = G.ch, inCrash = !!(C && RP.t >= C.t0);
   drawWorld(f, true);
