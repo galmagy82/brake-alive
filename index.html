@@ -1223,6 +1223,8 @@ const ASPHALT_TEX = noiseTex(256, (x, y, n, sm) => 0.86 + (n - 0.5) * 0.22 + (sm
 const WALK_TEX = noiseTex(256, (x, y, n, sm) => ((x % 64 < 2) || (y % 64 < 2) ? 0.62 : 0.9) + (n - 0.5) * 0.1 + (sm - 0.5) * 0.12, 2);
 // 땅(풀·흙): 덩어리진 얼룩 (6m마다 반복). 색은 지형 꼭짓점 색이 정하고 이 그림은 밝기만 바꾼다
 const GROUND_TEX = noiseTex(128, (x, y, n, sm) => 0.94 + (sm - 0.5) * 0.3 + (n - 0.5) * 0.14, 6);   // 평균 밝기는 예전과 거의 같게
+// 국도 갓길(다져진 흙길): 흙 얼룩 + 밝은 자갈 점 + 어두운 패인 곳 (3m마다 반복). 평균 밝기 약 0.85 (재질 색을 그만큼 밝게)
+const SHOULDER_TEX = noiseTex(256, (x, y, n, sm) => 0.84 + (sm - 0.5) * 0.4 + (n - 0.5) * 0.22 + (n > 0.972 ? 0.32 : 0) - (n < 0.02 ? 0.3 : 0), 3);
 // 인도 옆면: 인도 판(ribbon 조각마다 사각형 하나)의 네 가장자리에서 땅까지 내려오는 세로 면을 붙인다
 // 도로 쪽은 연석(밝은 콘크리트), 안쪽에 겹치는 면은 인도 판에 가려 보이지 않는다
 // 연석 옆면 무늬: 1m 블록마다 세로 줄눈, 블록마다 밝기 조금씩, 콘크리트 점, 윗모서리 밝은 선 (128px = 블록 2개 = 2m)
@@ -1591,7 +1593,12 @@ function buildRoad() {
     ribbon(white, -320, 1720, -3.5, -3.35, 0.02); ribbon(white, -320, 1720, 3.35, 3.5, 0.02);
     for (let k = -320; k < 1720; k += 10) if (k + 5 < R.zoneStart || k > R.zoneEnd) ribbon(yellow, k, k + 5, -0.08, 0.08, 0.02, 1);
     ribbon(yellow, R.zoneStart, R.zoneEnd, -0.24, -0.1, 0.02); ribbon(yellow, R.zoneStart, R.zoneEnd, 0.1, 0.24, 0.02);
-    ribbonMesh(shoulder, lambert(0x5a5148));
+    if (LOOK_OLD) ribbonMesh(shoulder, lambert(0x5a5148));
+    else {   // 자갈 섞인 흙 무늬 + 바깥 가장자리 30cm는 풀색이 섞인 흙 (풀밭과 자연스럽게 이어지게)
+      ribbonMesh(shoulder, new THREE.MeshLambertMaterial({ color: 0x6a5f55, map: SHOULDER_TEX }));
+      const edge = []; ribbon(edge, -320, 1720, -4.7, -4.4, -0.03); ribbon(edge, -320, 1720, 4.4, 4.7, -0.03);
+      ribbonMesh(edge, new THREE.MeshLambertMaterial({ color: 0x5c6444, map: SHOULDER_TEX, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }));
+    }
   }
   ribbonMesh(asphalt, new THREE.MeshLambertMaterial({ color: 0x33363b, map: ASPHALT_TEX }));
   ribbonMesh(white, lineMat(0xd8d8d0));
