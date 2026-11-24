@@ -3132,8 +3132,11 @@ function mergeMove(c, dt) {   // 정해진 시각(cutAt)까지는 가속 차로�
 function dropMove(c, dt) {
   const D = c.drop;
   if (G.t < SC.signal.greenAt) { c.v = 0; return; }
-  const k = G.t - SC.signal.greenAt < D.boostT ? D.acc1 : D.acc2;   // 출발 직후 잠깐 나보다 세게, 그 뒤 나와 같게
-  c.v = Math.min(V_MAX, c.v + 4.2 * (1 - c.v / (V_MAX * 1.08)) * k * dt);
+  // vRef: 나와 같은 가속(브레이크 없이)으로 달렸을 때의 속도. 출발 직후 boostT초만 acc1배로 세게 가속해 조금 앞서 나가고,
+  // 그 뒤에는 속도를 vRef×acc2로 맞춰 간격을 유지한 채 나란히 달린다 (내 운전에는 반응하지 않는다)
+  c.vRef = (c.vRef || 0) + 4.2 * (1 - (c.vRef || 0) / (V_MAX * 1.08)) * dt;
+  if (G.t - SC.signal.greenAt < D.boostT) c.v = Math.min(V_MAX, c.v + 4.2 * (1 - c.v / (V_MAX * 1.08)) * D.acc1 * dt);
+  else c.v += (c.vRef * D.acc2 - c.v) * Math.min(1, dt * 1.5);
   if (c.blinkT === undefined && c.s >= D.blinkS) { c.blinkT = G.t; ev('dropBlink', { idx: c.idx }); }
   if (!c.cut && c.blinkT !== undefined && G.t >= c.blinkT + D.delay) { c.cut = true; ev('dropCut', { idx: c.idx }); }
   const x0 = c.x;
