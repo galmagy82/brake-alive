@@ -3948,7 +3948,9 @@ function drawPlanCurve(f) {
   pctx.fillStyle = '#1d2a22'; pctx.fillRect(0, 0, W, H);                                               // 들판
   // 커브 안쪽 산: 도로 가장자리 밖으로 녹색 (커브가 급할수록 진하게)
   const hillA = s => Math.min(1, Math.abs(curvNear(s)) * 170);
-  band(s => Math.sign(curvNear(s) || 1) * (HW + 0.3), s => Math.sign(curvNear(s) || 1) * (HW + 40), a => `rgba(40,110,60,${0.9 * a})`, 2, hillA);
+  // 반투명 조각이 겹치며 생기던 줄무늬가 없도록, 배경(#1d2a22)과 미리 섞은 불투명 색으로 1m씩 칠한다
+  const hillC = a => { const m = 0.9 * a; return `rgb(${Math.round(29 + 11 * m)},${Math.round(42 + 68 * m)},${Math.round(34 + 26 * m)})`; };
+  band(s => Math.sign(curvNear(s) || 1) * (HW + 0.3), s => Math.sign(curvNear(s) || 1) * (HW + 40), hillC, 1, hillA);
   band(-HW - 1.5, HW + 1.5, '#3a3f46', 2);                                                              // 갓길
   band(-HW, HW, '#2a313c', 2);                                                                          // 도로
   // 중앙선: 앞지르기 금지 구간은 두 줄 실선, 그 밖은 점선
@@ -3965,23 +3967,41 @@ function drawPlanCurve(f) {
     return false;
   };
   const edge = (a, b, xx, hidA) => { for (let i = 0; i < 4; i++) { const m = (a + b) / 2; if (hiddenAt(m, xx) === hidA) a = m; else b = m; } return (a + b) / 2; };
-  pctx.fillStyle = 'rgba(6,8,12,.62)';
-  for (let xx = -HW - 1.5; xx < HW + 1.5; xx += 0.5) {
-    const xc = xx + 0.25; let prev = false, start = 0;
+  // 가로 0.5m 간격 세로줄마다 안 보이는 구간 [시작, 끝]을 찾고, 이웃 줄끼리 겹치는 구간을 한 영역으로 묶어
+  // 경계점을 이은 매끈한 모양 하나로 칠한다 (띠마다 따로 칠하면 계단·겹침 선이 생긴다)
+  const X0 = -HW - 1.5, X1 = HW + 1.5, DX = 0.5, lines = [];
+  for (let xx = X0; xx < X1 - 1e-6; xx += DX) {
+    const xc = xx + DX / 2, iv = []; let prev = false, start = 0;
     for (let ss = Math.floor(es) + 4; ss <= sB + 2; ss += 2) {
       const hid = ss <= sB && hiddenAt(ss, xc);
       if (hid && !prev) start = ss === Math.floor(es) + 4 ? ss : edge(ss - 2, ss, xc, false);
-      if (!hid && prev) {
-        const end = ss > sB ? sB : edge(ss - 2, ss, xc, true);
-        anyHidden = true; pctx.beginPath();
-        const pts = []; for (let t = start; t < end; t += 2) pts.push(t); pts.push(end);
-        pts.forEach((t, i) => { const p = P(t, xx); i ? pctx.lineTo(p[0], p[1]) : pctx.moveTo(p[0], p[1]); });
-        for (let i = pts.length - 1; i >= 0; i--) { const p = P(pts[i], xx + 0.52); pctx.lineTo(p[0], p[1]); }
-        pctx.closePath(); pctx.fill();
-      }
+      if (!hid && prev) iv.push([start, ss > sB ? sB : edge(ss - 2, ss, xc, true)]);
       prev = hid;
     }
+    lines.push({ xa: xx, xc, xb: xx + DX, iv });
   }
+  const regions = []; let open = [];
+  lines.forEach((L, li) => {
+    const next = [];
+    L.iv.forEach(([a, b]) => {
+      const r = open.find(r => !r.taken && r.last[0] < b && a < r.last[1]);
+      const reg = r || { rows: [] }; if (r) r.taken = true; else regions.push(reg);
+      reg.rows.push({ L, a, b }); reg.last = [a, b]; next.push(reg);
+    });
+    open.forEach(r => r.taken = false); open = next; next.forEach(r => r.taken = false);
+  });
+  pctx.fillStyle = 'rgba(6,8,12,.62)';
+  regions.forEach(reg => {
+    const rows = reg.rows, f0 = rows[0], fn = rows[rows.length - 1], pts = [];
+    const along = (x, a, b) => { const out = []; for (let t = a; t < b; t += 2) out.push([t, x]); out.push([b, x]); return out; };
+    along(f0.L.xa, f0.a, f0.b).reverse().forEach(q => pts.push(q));          // 첫 줄 바깥 가장자리 (끝 → 시작)
+    rows.forEach(r => pts.push([r.a, r.L.xc]));                              // 시작 쪽 경계
+    along(fn.L.xb, fn.a, fn.b).forEach(q => pts.push(q));                    // 마지막 줄 바깥 가장자리 (시작 → 끝)
+    for (let i = rows.length - 1; i >= 0; i--) pts.push([rows[i].b, rows[i].L.xc]);   // 끝 쪽 경계
+    anyHidden = true; pctx.beginPath();
+    pts.forEach(([t, x], i) => { const p = P(t, x); i ? pctx.lineTo(p[0], p[1]) : pctx.moveTo(p[0], p[1]); });
+    pctx.closePath(); pctx.fill();
+  });
   // 시야선은 그리지 않는다 (커브에서는 깔끔하게 나오지 않아 사용자 결정으로 뺐다. 어두운 영역만으로 안 보이는 곳을 보인다)
   // 차: 도로 좌표(s, x)의 네 모서리를 실제 위치로 옮겨 그린다
   pctx.font = '600 11px "IBM Plex Sans KR", sans-serif'; pctx.textBaseline = 'bottom';
