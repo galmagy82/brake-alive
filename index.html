@@ -855,9 +855,9 @@ const SCENARIOS = [
     player: { s: 100 - 10.6 - 2.8 - 2.15, v: 0, x: 1.75 },
     truck: { type: 'truck', label: '화물차', parked: true, s: 5000, x: 40, up: 0, flat: 0, down: 0, mass: 6, hl: 5, hw: 1.25, height: 3.5 },
     oncoming: [
-      // 옆 차: 2차로, 앞범퍼가 정지선 0.3m 뒤. 가속은 내 가속 × acc1 → 앞범퍼가 passS(교차로 건너편 끝)를 지나면 × acc2.
-      // blinkS에서 왼쪽 깜빡이, delay초 뒤 옆으로 latV(m/s)씩 1차로로 (가속은 acc2 그대로)
-      { label: '끼어든 차', hazard: true, color: 0x8a6d1f, s: 100 - 10.6 - 0.3 - 2.15, x: 5.25, v: 0, drop: { acc1: 1.1, acc2: 1.1, passS: 100 + 7.2, blinkS: 200, delay: 0, latV: 2.5 } },
+      // 옆 차: 2차로, 앞범퍼가 정지선 0.3m 뒤. 녹색불 뒤 boostT초 동안 내 가속 × acc1(조금 앞서 나간다), 그 뒤 × acc2(나란히 달린다).
+      // blinkS에서 왼쪽 깜빡이, delay초 뒤 1차로로 비스듬히 들어온다 (옆으로 최대 latV m/s, 부드럽게 시작하고 끝난다)
+      { label: '끼어든 차', hazard: true, color: 0x8a6d1f, s: 100 - 10.6 - 0.3 - 2.15, x: 5.25, v: 0, drop: { acc1: 1.1, boostT: 2.0, acc2: 1.0, blinkS: 200, delay: 0, latV: 1.2 } },
       // 맞은편 신호 대기 차들: 건너편 정지선 뒤 두 차로에 4대씩 (녹색불에 출발)
       ...[-1.75, -5.25].flatMap(x => [0, 1, 2, 3].map(k => ({ s: 100 + 10.9 + 2.15 + k * 7 + (x < -3 ? 1.2 : 0), x, v: 14, queue: { acc: 2 } }))),
       ...Array.from({ length: 6 }, (_, k) => [{ s: 300 + k * 90, v: 15, x: -1.75 }, { s: 330 + k * 90, v: 13.5, x: -5.25 }]).flat(),
@@ -3128,16 +3128,16 @@ function mergeMove(c, dt) {   // 정해진 시각(cutAt)까지는 가속 차로�
   const vx = c.x > 5.25 ? -2.8 : 0; c.x = Math.max(5.25, c.x + vx * dt); c.s += c.v * dt;
   c.yaw = vx ? Math.atan2(-vx, c.v) : 0;
 }
-// 13: 신호 대기 → 녹색불에 출발. 가속은 내 가속 × acc1, 교차로(passS)를 지나면 × acc2. blinkS에서 왼쪽 깜빡이, delay초 뒤 1차로(x 1.75)로 들어온다
+// 13: 신호 대기 → 녹색불에 출발. 가속은 boostT초 동안 내 가속 × acc1, 그 뒤 × acc2. blinkS에서 왼쪽 깜빡이, delay초 뒤 1차로(x 1.75)로 들어온다
 function dropMove(c, dt) {
   const D = c.drop;
   if (G.t < SC.signal.greenAt) { c.v = 0; return; }
-  const k = c.s + 2.2 >= D.passS ? D.acc2 : D.acc1;   // 교차로를 지나면서 나보다 세게 가속
+  const k = G.t - SC.signal.greenAt < D.boostT ? D.acc1 : D.acc2;   // 출발 직후 잠깐 나보다 세게, 그 뒤 나와 같게
   c.v = Math.min(V_MAX, c.v + 4.2 * (1 - c.v / (V_MAX * 1.08)) * k * dt);
   if (c.blinkT === undefined && c.s >= D.blinkS) { c.blinkT = G.t; ev('dropBlink', { idx: c.idx }); }
   if (!c.cut && c.blinkT !== undefined && G.t >= c.blinkT + D.delay) { c.cut = true; ev('dropCut', { idx: c.idx }); }
   const x0 = c.x;
-  if (c.cut) c.x = Math.max(1.75, c.x - D.latV * dt);
+  if (c.cut) { c.latv = Math.min(D.latV, (c.latv || 0) + 1.5 * dt, (c.x - 1.75) * 1.2 + 0.05); c.x = Math.max(1.75, c.x - c.latv * dt); }   // 완만한 대각선: 옆 속도를 서서히 올리고, 차로에 거의 들어오면 줄인다
   const LD = R.laneDrop;   // 좁아지는 사선(차단봉) 안쪽에서만 달린다: 차로가 좁아지면 그 폭에 밀려 1차로 쪽으로 붙는다
   if (LD && c.s + 2.2 > LD.s0) { const q = c.s + 2.2, edge = q >= LD.s0 + LD.taper ? 3.575 : (R.half - 0.2) + (3.575 - (R.half - 0.2)) * (q - LD.s0) / LD.taper; c.x = Math.max(1.75, Math.min(c.x, edge - 1.2)); }
   const vx = (c.x - x0) / dt; c.yaw = Math.abs(vx) > 1e-3 ? Math.atan2(-vx, c.v) : 0;
