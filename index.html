@@ -1279,7 +1279,7 @@ const WALK_TEX = noiseTex(256, (x, y, n, sm) => ((x % 64 < 2) || (y % 64 < 2) ? 
 // 땅(풀·흙): 덩어리진 얼룩 (6m마다 반복). 색은 지형 꼭짓점 색이 정하고 이 그림은 밝기만 바꾼다
 const GROUND_TEX = noiseTex(128, (x, y, n, sm) => 0.94 + (sm - 0.5) * 0.3 + (n - 0.5) * 0.14, 6);   // 평균 밝기는 예전과 거의 같게
 // 연석 콘크리트: 거친 무늬 + 옅은 얼룩 + 1m마다 블록 이음매 (2m마다 반복. 길이 방향으로 이음매 줄이 생긴다)
-const CURB_TEX = noiseTex(256, (x, y, n, sm) => (y % 128 < 3 ? 0.62 : 0.9) + (n - 0.5) * 0.16 + (sm - 0.5) * 0.18, 2);
+const GORE_CURB_TEX = noiseTex(256, (x, y, n, sm) => (y % 128 < 3 ? 0.62 : 0.9) + (n - 0.5) * 0.16 + (sm - 0.5) * 0.18, 2);
 // 국도 갓길(다져진 흙길): 흙 얼룩 + 밝은 자갈 점 + 어두운 패인 곳 (3m마다 반복). 평균 밝기 약 0.85 (재질 색을 그만큼 밝게)
 const SHOULDER_TEX = noiseTex(256, (x, y, n, sm) => 0.84 + (sm - 0.5) * 0.4 + (n - 0.5) * 0.22 + (n > 0.972 ? 0.32 : 0) - (n < 0.02 ? 0.3 : 0), 3);
 // 인도 옆면: 인도 판(ribbon 조각마다 사각형 하나)의 네 가장자리에서 땅까지 내려오는 세로 면을 붙인다
@@ -1622,7 +1622,7 @@ function buildRoad() {
         wall(gL, -1); wall(gR, 1);
         const n0 = wpos(E.nose, gL(E.nose) - 0.2, h(E.nose)), n1 = wpos(E.nose, gR(E.nose) + 0.2, h(E.nose)), n2 = wpos(E.nose, gR(E.nose) + 0.2, h(E.nose) + CH), n3 = wpos(E.nose, gL(E.nose) - 0.2, h(E.nose) + CH);
         cside.push(n0.x, n0.y, n0.z, n1.x, n1.y, n1.z, n2.x, n2.y, n2.z, n0.x, n0.y, n0.z, n2.x, n2.y, n2.z, n3.x, n3.y, n3.z);
-        const cm = new THREE.MeshLambertMaterial({ color: 0xaeaca6, map: CURB_TEX, side: THREE.DoubleSide });   // 콘크리트 연석 질감
+        const cm = new THREE.MeshLambertMaterial({ color: 0xaeaca6, map: GORE_CURB_TEX, side: THREE.DoubleSide });   // 콘크리트 연석 질감
         ribbonMesh(cb, cm); ribbonMesh(cside, cm);
       }
     }
