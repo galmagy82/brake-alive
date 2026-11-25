@@ -898,14 +898,14 @@ const SCENARIOS = [
     // 3차로를 달리던 차가 길을 잘못 든 것을 알고 분기점 직전에 급히 속도를 줄인 뒤, 깜빡이 없이 갈매기 무늬를 가로질러 2차로로 끼어든다
     road: { type: 'city4', lanes: 3, half: 10.5, flat: 14, xMin: 0.9, xMax: 9.6, hillStart: 1e6, hillEnd: 1e6 + 1, crest: 1e6, H: 0,
       zoneStart: -1e4, zoneEnd: 1e4, goal: 480, median: true, noWalk: true,
-      exit: { s0: 300, ang: 0.1, nose: 340, solid: 180, signs: [100, 220], guide: 120 } },
+      exit: { s0: 300, ang: 0.1, curve: 60, nose: 360, solid: 180, signs: [100, 220], guide: 120 } },
     player: { s: 0, v: 22.2, x: 5.25 },   // 시속 80km로 출발 (속도 제한 없음)
     truck: { type: 'truck', label: '화물차', parked: true, s: 5000, x: 40, up: 0, flat: 0, down: 0, mass: 6, hl: 5, hw: 1.25, height: 3.5 },
     oncoming: [
       // 끼어드는 차: 3차로 200m에서 시속 65km. decS부터 dec로 vSlow까지 줄이고, cutS에서 깜빡이 없이 갈매기 무늬를 가로질러 2차로로 (옆 latV m/s)
       { label: '끼어든 차', hazard: true, color: 0xd0b04a, s: 200, x: 8.75, v: 18, exitCut: { decS: 270, dec: 3, vSlow: 8, cutS: 322, latV: 2.0, v2: 16, a2: 1.5 } },
       // 1차로: 나와 같은 속도로 출발해 나처럼 가속하는 차들 (14m 간격). 내가 브레이크를 밟지 않으면 1차로에 들어갈 틈이 없다
-      ...Array.from({ length: 13 }, (_, k) => ({ label: '1차로 차', fwd: true, pace: true, s: -50 + k * 40, v: 22.2, x: 1.75 })),   // 40m 간격 (시속 80km에서 약 1.8초)
+      ...Array.from({ length: 13 }, (_, k) => ({ label: '1차로 차', fwd: true, pace: 0.9, s: -50 + k * 40, v: 22.2, x: 1.75 })),   // 40m 간격 (시속 80km에서 약 1.8초)
       // 맞은편 (중앙분리대 너머) 세 차로
       ...Array.from({ length: 8 }, (_, k) => [{ s: 120 + k * 80, v: 22, x: -1.75 }, { s: 150 + k * 80, v: 20, x: -5.25 }, { s: 180 + k * 80, v: 18, x: -8.75 }]).flat(),
     ],
@@ -1581,7 +1581,7 @@ function buildRoad() {
     } else { along(walk, -HW - 3, -HW - 0.2, 0.15); M ? alongR(walk, HW + 0.2, HW + 3, 0.15, 2, M.s0 - M.len * Math.cos(M.ang) - 4, M.s1 + M.taper) : along(walk, HW + 0.2, HW + 3, 0.15); }   // 보도
     along(white, -HW + 0.05, -HW + 0.2, 0.02); E ? ribbon(white, -320, E.s0, HW - 0.2, HW - 0.05, 0.02) : M ? alongR(white, HW - 0.2, HW - 0.05, 0.02, 2, M.s0, M.s1) : along(white, HW - 0.2, HW - 0.05, 0.02);
     if (E) {
-      const tn = Math.tan(E.ang), xc = q => 8.75 + Math.max(0, q - E.s0) * tn;
+      const xc = q => 8.75 + exitOff(q);
       const strip = (arr, sA, sB, fL, fR, y, step) => { for (let q = sA; q < sB - 1e-6; q += step) { const q2 = Math.min(q + step, sB);
         const a0 = wpos(q, fL(q), h(q) + y), a1 = wpos(q, fR(q), h(q) + y), b1 = wpos(q2, fR(q2), h(q2) + y), b0 = wpos(q2, fL(q2), h(q2) + y);
         arr.push(a0.x, a0.y, a0.z, a1.x, a1.y, a1.z, b1.x, b1.y, b1.z, a0.x, a0.y, a0.z, b1.x, b1.y, b1.z, b0.x, b0.y, b0.z); } };
@@ -1750,7 +1750,7 @@ function buildTrees() {
     if (s > R.goal - 20 && s < R.goal + 120 && Math.abs(x) < 50) continue;
     if (R.intersection && Math.abs(s - R.intersection) < R.half + 6) continue;   // 가로 도로 위
     if (R.merge && x > 0 && x < R.half + 80 && s > R.merge.s0 - R.merge.len - 30 && s < R.merge.s1 + R.merge.taper + 20) continue;   // 진입로 위
-    if (R.exit && x > 0 && s > R.exit.s0 - 30 && x < 8.75 + Math.max(0, s - R.exit.s0) * Math.tan(R.exit.ang) + 12) continue;   // 14: 출구 차로 위
+    if (R.exit && x > 0 && s > R.exit.s0 - 30 && x < 8.75 + exitOff(s) + 12) continue;   // 14: 출구 차로 위
     const y = groundY(s, x), H = 5 + r() * 7, rad = 1.3 + r() * 1.5, leafy = r() < 0.4;
     e.set(0, r() * Math.PI * 2, 0); q.setFromEuler(e);   // 나무마다 조금씩 돌려 같은 모양이 반복돼 보이지 않게
     wpos(s, x, y + 0.9, p); sc.set(1, leafy ? 2.6 : 1.8, 1); m.compose(p, q, sc); trunk.setMatrixAt(k, m);
@@ -1779,7 +1779,7 @@ function buildTreesOld() {   // 예전 나무 (?look=old)
     if (s > R.goal - 20 && s < R.goal + 120 && Math.abs(x) < 50) continue;
     if (R.intersection && Math.abs(s - R.intersection) < R.half + 6) continue;   // 가로 도로 위
     if (R.merge && x > 0 && x < R.half + 80 && s > R.merge.s0 - R.merge.len - 30 && s < R.merge.s1 + R.merge.taper + 20) continue;   // 진입로 위
-    if (R.exit && x > 0 && s > R.exit.s0 - 30 && x < 8.75 + Math.max(0, s - R.exit.s0) * Math.tan(R.exit.ang) + 12) continue;   // 14: 출구 차로 위
+    if (R.exit && x > 0 && s > R.exit.s0 - 30 && x < 8.75 + exitOff(s) + 12) continue;   // 14: 출구 차로 위
     const y = groundY(s, x), H = 5 + r() * 7, rad = 1.3 + r() * 1.5;
     wpos(s, x, y + 0.9, p); sc.set(1, 1.8, 1); m.compose(p, q, sc); trunk.setMatrixAt(k, m);
     wpos(s, x, y + 1.6 + H * 0.4, p); sc.set(rad, H * 0.8, rad); m.compose(p, q, sc); crown.setMatrixAt(k, m);
@@ -1980,7 +1980,7 @@ function addMergeSign(s, x) {   // 노란 마름모: 오른쪽에서 합류 (본
 }
 // 14: 출구 안내 표지(녹색, 길가 두 기둥), 3차로 노면 오른쪽 유도 화살표, 갈라지는 삼각형 끝의 충격흡수시설(노랑·검정 줄무늬)
 function buildExitProps() {
-  const E = R.exit, HW = R.half, tn = Math.tan(E.ang), xc = q => 8.75 + Math.max(0, q - E.s0) * tn;
+  const E = R.exit, HW = R.half, xc = q => 8.75 + exitOff(q);
   E.signs.forEach(q => {
     const grp = new THREE.Group(), postM = lambert(0x9aa0a6);
     [-1.3, 1.3].forEach(dx => { const pst = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 4.2, 6), postM); pst.position.set(dx, 2.1, 0); grp.add(pst); });
@@ -2089,7 +2089,7 @@ function buildGoal() {
     const b = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd), lambert(r() < 0.5 ? 0x8d8a86 : 0x6f7a84));
     const bs = s + 25 + Math.floor(i / 2) * 32;
     let bx = side * (14 + bw / 2 + r() * 10);
-    if (R.exit && side > 0) bx = Math.max(bx, 8.75 + Math.max(0, bs - R.exit.s0) * Math.tan(R.exit.ang) + 6 + bw / 2);   // 14: 출구 차로 바깥으로 비켜 세운다
+    if (R.exit && side > 0) bx = Math.max(bx, 8.75 + exitOff(bs) + 6 + bw / 2);   // 14: 출구 차로 바깥으로 비켜 세운다
     placeOnRoad(b, bs, bx, h(bs) + bh / 2, 0); world.add(b);
   }
 }
@@ -2868,6 +2868,12 @@ function roadWalls() {
     }
   }
 }
+// 14: 출구 차로가 본선에서 벌어진 거리 (s0부터). 처음 curve m는 완만한 곡선(포물선)으로 벌어지기 시작해 기울기 tan(ang)에 이르고, 그 뒤는 직선
+function exitOff(s) {
+  const E = R.exit; if (!E) return 0; const d = s - E.s0; if (d <= 0) return 0;
+  const k = Math.tan(E.ang), L = E.curve || 0;
+  return d < L ? k * d * d / (2 * L) : k * L / 2 + k * (d - L);
+}
 // 도로 밖(잔디)인가: 국도는 갓길 밖, 도심은 보도 밖. 교차로 가로 도로·합류 진입로와 가속 차로는 도로로 본다
 function offRoad(s, x) {
   const ax = Math.abs(x);
@@ -2875,7 +2881,7 @@ function offRoad(s, x) {
   if (R.type !== 'city4') return ax > 4.7;
   if (ax <= R.half + 3) return false;
   if (R.intersection && Math.abs(s - R.intersection) < R.half + 3) return false;
-  if (R.exit && x > 0 && s >= R.exit.s0 && x < 8.75 + (s - R.exit.s0) * Math.tan(R.exit.ang) + 2) return false;   // 14: 출구 차로
+  if (R.exit && x > 0 && s >= R.exit.s0 && x < 8.75 + exitOff(s) + 2) return false;   // 14: 출구 차로
   const M = R.merge;
   if (M && x > 0) {
     if (s >= M.s0 && s <= M.s1 + M.taper && x < R.half + 3.8) return false;
@@ -3258,7 +3264,7 @@ function newRound() {
     if (o.startAt != null) Object.assign(c, { go0: o.startAt, acc: o.acc || 2.5, vT: o.v, v: 0 });   // 신호 대기: 정해진 시각(녹색불)에 출발                                        // 정체 줄의 차
     if (o.uturn) { Object.assign(c, { uturn: o.uturn, u: 0, x0: c.x, yaw: 0, v1: o.v, turning: false }); addBlinker(carMeshes[c.idx]); }   // 유턴 직전 왼쪽 깜빡이
     if (o.merge) { Object.assign(c, { fwd: true, merge: true, u: o.u0, cutAt: o.cutAt, cutV: o.cutV, cutA: o.cutA }); Object.assign(c, mergePos(c.u)); }
-    if (o.pace) c.pace = true;   // 14: 나처럼 계속 가속한다 (내가 브레이크를 밟지 않으면 나란히)
+    if (o.pace) c.pace = o.pace;   // 14: 나처럼 계속 가속한다 (내가 브레이크를 밟지 않으면 나란히)
     if (o.exitCut) Object.assign(c, { fwd: true, exitCut: o.exitCut, yaw: 0 });   // 14: 분기점에서 갈매기 무늬를 가로질러 끼어드는 차 (깜빡이 없음)
     if (o.drop) { Object.assign(c, { fwd: true, drop: o.drop, vT: o.v, v: 0, yaw: 0 }); addBlinker(carMeshes[c.idx]); }   // 13: 줄어드는 차로에서 끼어드는 옆 차
   });   // 처음부터 정해진 위치에서 달린다
@@ -3309,13 +3315,13 @@ function dropMove(c, dt) {
 // 14: 3차로를 달리다 출구가 갈라지면 출구 차로를 따라가고, decS부터 vSlow까지 급히 줄인 뒤 cutS에서 깜빡이 없이
 // 갈매기 무늬를 가로질러 2차로(x 5.25)로 틀어 들어온다. 들어온 뒤에는 a2로 v2까지 다시 가속. 내 운전에는 반응하지 않는다
 function exitCutMove(c, dt) {
-  const X = c.exitCut, E = R.exit, tn = Math.tan(E.ang);
+  const X = c.exitCut, E = R.exit;
   if (!c.slowing && c.s >= X.decS) { c.slowing = true; ev('exitSlow', { idx: c.idx }); }
   if (!c.cutting && c.s >= X.cutS) { c.cutting = true; ev('exitCut', { idx: c.idx }); }
   if (c.cutting && c.x <= 5.3) c.v = Math.min(X.v2, c.v + X.a2 * dt);
   else if (c.slowing) c.v = Math.max(X.vSlow, c.v - X.dec * dt);
   const x0 = c.x;
-  if (!c.cutting) c.x = 8.75 + Math.max(0, c.s - E.s0) * tn;   // 3차로 → 출구 차로를 따라간다
+  if (!c.cutting) c.x = 8.75 + exitOff(c.s);   // 3차로 → 출구 차로를 따라간다
   else { c.latv = Math.min(X.latV, (c.latv || 0) + 3 * dt, (c.x - 5.25) * 1.5 + 0.05); c.x = Math.max(5.25, c.x - c.latv * dt); }   // 급히 왼쪽으로
   c.s += c.v * dt;
   const vx = (c.x - x0) / dt; c.yaw = Math.abs(vx) > 1e-3 ? Math.atan2(-vx, c.v) : 0;
@@ -3447,7 +3453,7 @@ function step(dt) {
   }
   if (G.bait) { const bt = G.bait, bl = slope(bt.s), bv = bl > 0.03 ? SC.bait.up : (bl < -0.03 ? SC.bait.down : SC.bait.flat); bt.v += (bv - bt.v) * Math.min(1, dt * 0.6); bt.s += bt.v * dt; }
   G.cars.forEach(c => { if (c.wakeT != null && G.t >= c.wakeT) { c.active = true; c.wakeT = null; } });
-  G.cars.forEach(c => { if (!c.active) return; if (c.uturn) uturnMove(c, dt); else if (c.turn) turnMove(c, dt); else if (c.cross) { c.x -= c.v * dt; if (c.x < -150) c.active = false; } else if (c.merge) mergeMove(c, dt); else if (c.drop) dropMove(c, dt); else if (c.exitCut) exitCutMove(c, dt); else if (c.fwd) { if (c.go0 !== undefined) c.v = G.t < c.go0 ? 0 : Math.min(c.vT, c.v + c.acc * dt); if (c.pace) c.v = Math.min(V_MAX, c.v + 4.2 * (1 - c.v / (V_MAX * 1.08)) * dt); if (c.follow) followMove(c, dt); c.s += c.v * dt; }
+  G.cars.forEach(c => { if (!c.active) return; if (c.uturn) uturnMove(c, dt); else if (c.turn) turnMove(c, dt); else if (c.cross) { c.x -= c.v * dt; if (c.x < -150) c.active = false; } else if (c.merge) mergeMove(c, dt); else if (c.drop) dropMove(c, dt); else if (c.exitCut) exitCutMove(c, dt); else if (c.fwd) { if (c.go0 !== undefined) c.v = G.t < c.go0 ? 0 : Math.min(c.vT, c.v + c.acc * dt); if (c.pace) c.v = Math.min(V_MAX, c.v + 4.2 * (1 - c.v / (V_MAX * 1.08)) * (c.pace === true ? 1 : c.pace) * dt); if (c.follow) followMove(c, dt); c.s += c.v * dt; }
     else if (c.queue) {   // 녹색불이 켜지고, 가로질러 달려오는 차가 모두 지나간 뒤 출발한다
       if (!c.go && G.t >= SC.signal.greenAt && !G.cars.some(r => r.cross && r.active && r.x > -9)) c.go = true;
       if (c.go) { c.v = Math.min(c.vT, c.v + c.queue.acc * dt); c.s -= c.v * dt; }
@@ -4292,7 +4298,7 @@ function drawPlan(f) {
   if (R.merge) { const M = R.merge; pctx.fillStyle = '#2a313c'; pctx.fillRect(X(M.s0), Y(HW), (M.s1 - M.s0) * k, 3.8 * vx); pctx.beginPath(); pctx.moveTo(X(M.s1), Y(HW)); pctx.lineTo(X(M.s1), Y(HW + 3.8)); pctx.lineTo(X(M.s1 + M.taper), Y(HW)); pctx.fill(); }   // 가속 차로
   sideAlleys().forEach(a => { pctx.fillStyle = '#2a313c'; a.side < 0 ? pctx.fillRect(X(a.s - a.w / 2), 0, a.w * k, Y(-HW)) : pctx.fillRect(X(a.s - a.w / 2), Y(HW), a.w * k, H - Y(HW)); });   // 갈림 골목들
   if (R.exit) {   // 14: 오른쪽으로 갈라지는 출구 차로 + 갈매기 무늬 삼각형 + 충격흡수시설
-    const E = R.exit, tn = Math.tan(E.ang), xc = q => 8.75 + Math.max(0, q - E.s0) * tn, a = X(E.s0), sEnd = s0 + span + 5;
+    const E = R.exit, xc = q => 8.75 + exitOff(q), a = X(E.s0), sEnd = s0 + span + 5;
     pctx.fillStyle = '#2a313c'; pctx.beginPath(); pctx.moveTo(a, Y(7)); pctx.lineTo(X(sEnd), Y(7)); pctx.lineTo(X(sEnd), Y(xc(sEnd) + 1.75)); pctx.lineTo(a, Y(HW)); pctx.closePath(); pctx.fill();
     pctx.fillStyle = '#3a3f46'; pctx.fillRect(Math.max(0, a), Y(HW), W, H - Y(HW));   // 출구 바깥은 길이 아니다
     pctx.fillStyle = '#2a313c'; pctx.beginPath(); pctx.moveTo(a, Y(HW)); pctx.lineTo(X(sEnd), Y(xc(sEnd) + 1.75)); pctx.lineTo(X(sEnd), Y(7)); pctx.closePath(); pctx.fill();
