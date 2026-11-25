@@ -1598,9 +1598,15 @@ function buildRoad() {
         const p1 = P(q + 2, 7.15), p2 = P(q, mid), p3 = P(q + 2, xl), p4 = P(q + 2 + tk, xl), p5 = P(q + tk, mid), p6 = P(q + 2 + tk, 7.15);
         white.push(...p1, ...p5, ...p6, ...p1, ...p2, ...p5, ...p2, ...p4, ...p5, ...p2, ...p3, ...p4);   // 위를 보는 면 (반시계)
       }
-      // 노면색깔유도선 (녹색): 3차로 가운데를 따라 출구 차로로 이어진다
-      const guide = []; strip(guide, E.guide, E.s0 + 400, q => xc(q) - 0.22, q => xc(q) + 0.22, 0.022, 2);
-      ribbonMesh(guide, lineMat(0x2fae62));
+      // 노면색깔유도선 (출구 쪽은 분홍): 3차로 가운데를 따라 출구 차로로 이어지는 넓고 빛바랜 띠 + 안에 흰 ∧ 화살표 (12m마다)
+      const guide = []; strip(guide, E.guide, E.s0 + 400, q => xc(q) - 0.3, q => xc(q) + 0.3, 0.022, 2);
+      ribbonMesh(guide, lineMat(0xc97d92));
+      const gArr = [], Pg = (qq, x) => { const v = wpos(qq, x, h(qq) + 0.024); return [v.x, v.y, v.z]; };
+      for (let q = E.guide + 8; q < E.s0 + 400; q += 12) {   // 꼭짓점이 앞(+s)을 향한 V 하나를 한 덩어리로 (두께 0.16m)
+        const x = xc(q), tk = 0.16, a1 = Pg(q, x - 0.22), a2 = Pg(q + 0.55, x), a3 = Pg(q, x + 0.22), b1 = Pg(q - tk, x - 0.22), b2 = Pg(q + 0.55 - tk, x), b3 = Pg(q - tk, x + 0.22);
+        gArr.push(...b1, ...a2, ...a1, ...b1, ...b2, ...a2, ...b2, ...a3, ...a2, ...b2, ...b3, ...a3);
+      }
+      ribbonMesh(gArr, new THREE.MeshLambertMaterial({ color: 0xe6e4dc, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 }));
       // 갈라진 뒤 삼각형 끝(nose) 너머: 본선과 출구 사이 풀밭 띠
       const gL = q => 7.4, gR = q => Math.max(7.5, xc(q) - 2.1), CH = 0.13;   // 잔디밭은 연석 높이(13cm)만큼 올라와 있다
       const gr = []; strip(gr, E.nose, 1720, gL, gR, CH - 0.01, 2);
