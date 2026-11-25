@@ -283,9 +283,17 @@ button.card:hover, button.card:focus-visible { border-color: var(--paint); trans
   #profile { height: 70px; }
   #caption { top: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); width: min(480px, calc(100% - 32px)); padding: 8px 12px; font-size: 14px; line-height: 1.45; }
 }
+#splash { position: fixed; inset: 0; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; background: #12161c; color: #e8e6e1; font-family: system-ui, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; transition: opacity .5s ease; }
+#splash img { border-radius: 20px; margin-bottom: 8px; }
+#splash b { font-size: 22px; font-weight: 600; letter-spacing: .02em; }
+#splash small { font-size: 14px; color: #9aa0a8; }
+#splash.gone { opacity: 0; pointer-events: none; }
 </style>
 </head>
 <body>
+<!-- 시작 화면: 폰 홈 화면 앱의 시작 화면과 같은 모습. 글꼴과 3D 배경이 준비되면 사라진다 (글씨체가 바뀌는 순간을 가린다) -->
+<div id="splash"><img src="icon-192.png" alt="" width="96" height="96"><b>Brake Alive</b><small>사고 예측 시뮬레이터</small></div>
+<script>try { if (matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches) document.getElementById('splash').remove(); } catch (e) {}   // 홈 화면 앱: 안드로이드 시작 화면이 이미 나온다</script>
 
 <div id="app">
   <canvas id="gl"></canvas>
@@ -4479,6 +4487,18 @@ function loop(now) {
   renderer.render(scene, camera);
 }
 requestAnimationFrame(loop);
+// 시작 화면 닫기: 제목 화면 글꼴 세 가지 + 3D 배경 첫 장면이 준비되면 (늦어도 3초 뒤) 부드럽게 사라진다
+(() => {
+  const sp = document.getElementById('splash'); if (!sp) return;
+  const fonts = document.fonts && document.fonts.load ? Promise.all([
+    document.fonts.load('600 40px "IBM Plex Mono"', 'BRAKE ALIVE'),
+    document.fonts.load('24px "Do Hyeon"', '사고 나기 딱 좋은 순간'),
+    document.fonts.load('500 16px "IBM Plex Sans KR"', '사고 나기 딱 좋은 순간, 여기서 먼저 겪어 보세요.'),
+  ]).catch(() => {}) : Promise.resolve();
+  const frame = new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));   // 첫 장면이 그려진 뒤
+  let done = false; const hide = () => { if (done) return; done = true; sp.classList.add('gone'); setTimeout(() => sp.remove(), 600); };
+  Promise.all([fonts, frame]).then(hide); setTimeout(hide, 3000);
+})();
 })();
 </script>
 </body>
