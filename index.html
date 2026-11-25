@@ -903,7 +903,7 @@ const SCENARIOS = [
     truck: { type: 'truck', label: '화물차', parked: true, s: 5000, x: 40, up: 0, flat: 0, down: 0, mass: 6, hl: 5, hw: 1.25, height: 3.5 },
     oncoming: [
       // 끼어드는 차: 3차로 200m에서 시속 65km. decS부터 dec로 vSlow까지 줄이고, cutS에서 깜빡이 없이 갈매기 무늬를 가로질러 2차로로 (옆 latV m/s)
-      { label: '출구에서 돌아온 차', hazard: true, color: 0xd0b04a, s: 200, x: 8.75, v: 18, exitCut: { decS: 270, dec: 3, vSlow: 8, cutS: 322, latV: 2.0, v2: 16, a2: 1.5 } },
+      { label: '출구에서 돌아온 차', hazard: true, color: 0xd0b04a, s: 200, x: 8.75, v: 18, exitCut: { decS: 270, dec: 3, vSlow: 8, cutS: 322, latV: 2.0, v2: 28, a2: 2.0 } },
       // 3차로 출구로 가는 차 3대: 출구에서 돌아온 차 뒤 30m 간격으로 같이 달리다가, 그 차가 머뭇거리는 곳 뒤에서 차례로 멈춘다 (stopS: 앞범퍼가 멈추는 곳 근처, dec m/s²)
       ...[[170, 310], [140, 303], [110, 296]].map(([s0, stopS]) => ({ label: '3차로 차', fwd: true, s: s0, x: 8.75, v: 18, exitQ: { stopS, dec: 2.5 } })),
       // 1차로: 나와 같은 속도로 출발해 나처럼 가속하는 차들 (14m 간격). 내가 브레이크를 밟지 않으면 1차로에 들어갈 틈이 없다
