@@ -903,9 +903,9 @@ const SCENARIOS = [
     truck: { type: 'truck', label: '화물차', parked: true, s: 5000, x: 40, up: 0, flat: 0, down: 0, mass: 6, hl: 5, hw: 1.25, height: 3.5 },
     oncoming: [
       // 끼어드는 차: 3차로 200m에서 시속 65km. decS부터 dec로 vSlow까지 줄이고, cutS에서 깜빡이 없이 갈매기 무늬를 가로질러 2차로로 (옆 latV m/s)
-      { label: '끼어든 차', hazard: true, color: 0xd0b04a, s: 200, x: 8.75, v: 18, exitCut: { decS: 270, dec: 3, vSlow: 8, cutS: 330, latV: 2.0, v2: 16, a2: 1.5 } },
+      { label: '끼어든 차', hazard: true, color: 0xd0b04a, s: 200, x: 8.75, v: 18, exitCut: { decS: 270, dec: 3, vSlow: 8, cutS: 322, latV: 2.0, v2: 16, a2: 1.5 } },
       // 1차로: 나와 같은 속도로 출발해 나처럼 가속하는 차들 (14m 간격). 내가 브레이크를 밟지 않으면 1차로에 들어갈 틈이 없다
-      ...Array.from({ length: 26 }, (_, k) => ({ label: '1차로 차', fwd: true, pace: true, s: -50 + k * 14, v: 22.2, x: 1.75 })),
+      ...Array.from({ length: 13 }, (_, k) => ({ label: '1차로 차', fwd: true, pace: true, s: -50 + k * 14, v: 22.2, x: 1.75 })),
       // 맞은편 (중앙분리대 너머) 세 차로
       ...Array.from({ length: 8 }, (_, k) => [{ s: 120 + k * 80, v: 22, x: -1.75 }, { s: 150 + k * 80, v: 20, x: -5.25 }, { s: 180 + k * 80, v: 18, x: -8.75 }]).flat(),
     ],
@@ -2800,11 +2800,12 @@ function roadWalls() {
     const e = bodyExt(b), inT = T && b.s > T.s0 && b.s < T.s1;
     // 왼쪽: 중앙분리대(폭 0.5m) 또는 터널 왼쪽 벽(두께 0.3m). 오른쪽: 터널 안에서만 벽
     const xr = tunnelXR(), walls = [];
-    if (inT && T.twin && b.x < 0) {   // 맞은편 터널 안
+    if (b.side0 === undefined) b.side0 = b.x < 0 ? -1 : 1;   // 사고가 시작될 때 분리대의 어느 쪽에 있었나 (그쪽 면에서 막힌다. 반대쪽으로 순간이동하지 않게)
+    if (inT && T.twin && b.side0 < 0) {   // 맞은편 터널 안
       walls.push({ sg: 1, lim: -0.15 - e.w, name: '터널 벽' }, { sg: -1, lim: -xr + 0.15 + e.w, name: '터널 벽' });
     } else if (inT) {
       walls.push({ sg: -1, lim: 0.15 + e.w, name: '터널 벽' }, { sg: 1, lim: xr - 0.15 - e.w, name: '터널 벽' });
-    } else if (R.median) walls.push({ sg: -1, lim: 0.25 + e.w, name: '중앙분리대' });
+    } else if (R.median) walls.push(b.side0 > 0 ? { sg: -1, lim: 0.25 + e.w, name: '중앙분리대' } : { sg: 1, lim: -0.25 - e.w, name: '중앙분리대' });   // 맞은편 차는 분리대 왼쪽 면에서 막힌다
     for (const W of walls) {
       const sg = W.sg, over = sg < 0 ? b.x < W.lim : b.x > W.lim;
       if (!over) { if (b.wallSide === sg) b.wallSide = 0; continue; }
