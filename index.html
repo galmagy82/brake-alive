@@ -2689,6 +2689,7 @@ function chainStep(dt) {
   }
   if (R.type === 'alley') alleyWalls();
   if (R.median || R.tunnel) roadWalls();
+  if (R.exit) for (const b of C.bodies) { const g = goreGrass(b.s, b.x); if (g && !b.onGore) { b.vs *= 0.85; b.vx *= 0.85; } b.onGore = g; }   // 14: 연석(13cm)을 넘어 잔디로 올라가는 순간 속도를 조금 잃는다
   postHits();
   if (R.cutHill && R.curves) hillWalls();
   chainCollide(false);
@@ -2874,6 +2875,8 @@ function exitOff(s) {
   const k = Math.tan(E.ang), L = E.curve || 0;
   return d < L ? k * d * d / (2 * L) : k * L / 2 + k * (d - L);
 }
+// 14: 출구 삼각형 끝(nose) 뒤, 본선과 출구 사이 잔디밭인가 (연석 바깥쪽 포함)
+function goreGrass(s, x) { const E = R.exit; return !!E && s >= E.nose && x > 7.2 && x < 8.75 + exitOff(s) - 1.9; }
 // 도로 밖(잔디)인가: 국도는 갓길 밖, 도심은 보도 밖. 교차로 가로 도로·합류 진입로와 가속 차로는 도로로 본다
 function offRoad(s, x) {
   const ax = Math.abs(x);
@@ -2881,6 +2884,7 @@ function offRoad(s, x) {
   if (R.type !== 'city4') return ax > 4.7;
   if (ax <= R.half + 3) return false;
   if (R.intersection && Math.abs(s - R.intersection) < R.half + 3) return false;
+  if (goreGrass(s, x)) return true;   // 14: 삼각형 끝 뒤 잔디밭은 풀밭 (도로의 2배로 감속)
   if (R.exit && x > 0 && s >= R.exit.s0 && x < 8.75 + exitOff(s) + 2) return false;   // 14: 출구 차로
   const M = R.merge;
   if (M && x > 0) {
