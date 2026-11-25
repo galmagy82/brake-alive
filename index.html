@@ -905,7 +905,7 @@ const SCENARIOS = [
       // 끼어드는 차: 3차로 200m에서 시속 65km. decS부터 dec로 vSlow까지 줄이고, cutS에서 깜빡이 없이 갈매기 무늬를 가로질러 2차로로 (옆 latV m/s)
       { label: '끼어든 차', hazard: true, color: 0xd0b04a, s: 200, x: 8.75, v: 18, exitCut: { decS: 270, dec: 3, vSlow: 8, cutS: 322, latV: 2.0, v2: 16, a2: 1.5 } },
       // 1차로: 나와 같은 속도로 출발해 나처럼 가속하는 차들 (14m 간격). 내가 브레이크를 밟지 않으면 1차로에 들어갈 틈이 없다
-      ...Array.from({ length: 13 }, (_, k) => ({ label: '1차로 차', fwd: true, pace: 0.9, s: -50 + k * 40, v: 22.2, x: 1.75 })),   // 40m 간격 (시속 80km에서 약 1.8초)
+      ...Array.from({ length: 13 }, (_, k) => ({ label: '1차로 차', fwd: true, pace: 0.9, s: -40 + k * 40, v: 22.2, x: 1.75 })),   // 한 대는 내 바로 옆(s 0)에서 출발   // 40m 간격 (시속 80km에서 약 1.8초)
       // 맞은편 (중앙분리대 너머) 세 차로
       ...Array.from({ length: 8 }, (_, k) => [{ s: 120 + k * 80, v: 22, x: -1.75 }, { s: 150 + k * 80, v: 20, x: -5.25 }, { s: 180 + k * 80, v: 18, x: -8.75 }]).flat(),
     ],
