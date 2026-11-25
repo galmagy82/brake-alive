@@ -560,7 +560,7 @@ const SCENARIOS = [
     oncoming: [
       // 합류 차: 처음부터 진입로에 보이고, 깜빡이 없이 가속 차로를 달리다가 정해진 시각에 갑자기 속도를 올리며 끼어든다
       // (브레이크를 전혀 밟지 않으면 내 차 약 30m 앞에서 끼어들도록 맞췄다)
-      { label: '끼어든 차', hazard: true, merge: true, color: 0x8a6d1f, v: 14, u0: 124, cutAt: 10.2, cutV: 22, cutA: 5 },
+      { label: '합류하는 차', hazard: true, merge: true, color: 0x8a6d1f, v: 14, u0: 124, cutAt: 10.2, cutV: 22, cutA: 5 },
       ...Array.from({ length: 35 }, (_, k) => -40 + k * 32).filter(s => Math.abs(s - 140) > 12).map(s => ({ label: '1차로 차', fwd: true, s, v: 21.99, x: 1.75 })),
       ...Array.from({ length: 8 }, (_, k) => [{ s: 95 + k * 90, v: 15, x: -1.75 }, { s: 117 + k * 90 + (k % 3) * 6, v: 13.5, x: -5.25 }]).flat(),
     ],
@@ -872,7 +872,7 @@ const SCENARIOS = [
     oncoming: [
       // 옆 차: 2차로, 앞범퍼가 정지선 0.3m 뒤. 녹색불 뒤 boostT초 동안 내 가속 × acc1(조금 앞서 나간다), 그 뒤 × acc2(나란히 달린다).
       // blinkS에서 왼쪽 깜빡이, delay초 뒤 1차로로 비스듬히 들어온다 (옆으로 최대 latV m/s, 부드럽게 시작하고 끝난다)
-      { label: '끼어든 차', hazard: true, color: 0x8a6d1f, s: 100 - 10.6 - 0.3 - 2.15, x: 5.25, v: 0, drop: { acc1: 1.1, boostT: 5.5, acc2: 1.0, blinkS: 200, delay: 0, latV: 1.2, cutDec: 0.8 } },
+      { label: '합류하는 차', hazard: true, color: 0x8a6d1f, s: 100 - 10.6 - 0.3 - 2.15, x: 5.25, v: 0, drop: { acc1: 1.1, boostT: 5.5, acc2: 1.0, blinkS: 200, delay: 0, latV: 1.2, cutDec: 0.8 } },
       // 맞은편 신호 대기 차들: 건너편 정지선 뒤 두 차로에 4대씩 (녹색불에 출발)
       ...[-1.75, -5.25].flatMap(x => [0, 1, 2, 3].map(k => ({ s: 100 + 10.9 + 2.15 + k * 7 + (x < -3 ? 1.2 : 0), x, v: 14, queue: { acc: 2 } }))),
       ...Array.from({ length: 6 }, (_, k) => [{ s: 300 + k * 90, v: 15, x: -1.75 }, { s: 330 + k * 90, v: 13.5, x: -5.25 }]).flat(),
@@ -890,7 +890,7 @@ const SCENARIOS = [
     chainBody: '한 대의 무리한 끼어들기가 여러 차를 사고에 휘말리게 했습니다.',
   },
   {
-    id: '14', title: '분기점 끼어들기', ready: true,
+    id: '14', title: '분기점', ready: true,
     info: '도시고속도로 · 편도 3차로 · 오후 5시',
     mission: { time: 20 },
     // 편도 3차로 도시고속도로 (중앙분리대). 나는 2차로, 1차로에는 나와 같은 속도로 달리는 차들이 줄지어 있어 들어갈 수 없다.
@@ -903,7 +903,7 @@ const SCENARIOS = [
     truck: { type: 'truck', label: '화물차', parked: true, s: 5000, x: 40, up: 0, flat: 0, down: 0, mass: 6, hl: 5, hw: 1.25, height: 3.5 },
     oncoming: [
       // 끼어드는 차: 3차로 200m에서 시속 65km. decS부터 dec로 vSlow까지 줄이고, cutS에서 깜빡이 없이 갈매기 무늬를 가로질러 2차로로 (옆 latV m/s)
-      { label: '끼어든 차', hazard: true, color: 0xd0b04a, s: 200, x: 8.75, v: 18, exitCut: { decS: 270, dec: 3, vSlow: 8, cutS: 322, latV: 2.0, v2: 16, a2: 1.5 } },
+      { label: '출구에서 돌아온 차', hazard: true, color: 0xd0b04a, s: 200, x: 8.75, v: 18, exitCut: { decS: 270, dec: 3, vSlow: 8, cutS: 322, latV: 2.0, v2: 16, a2: 1.5 } },
       // 1차로: 나와 같은 속도로 출발해 나처럼 가속하는 차들 (14m 간격). 내가 브레이크를 밟지 않으면 1차로에 들어갈 틈이 없다
       ...Array.from({ length: 13 }, (_, k) => ({ label: '1차로 차', fwd: true, pace: 0.9, s: -30 + k * 40, v: 22.2, x: 1.75 })),   // 10m, 50m, … 앞과 30m 뒤에서 출발   // 40m 간격 (시속 80km에서 약 1.8초)
       // 맞은편 (중앙분리대 너머) 세 차로
@@ -4388,12 +4388,12 @@ function showResult() {
       title = '주차된 차와 충돌'; sub = '';
       body = SC.truckBody || '';
     } else if (e.type === 'merge') {
-      title = '끼어든 차와 충돌'; sub = '';
+      title = '합류하는 차와 충돌'; sub = '';
       body = (G.flags.cutT ? '' : '') + '합류 지점에서는 합류하던 차가 갑자기 들어올 수 있습니다. 미리 속도를 줄여 앞 공간을 남겨 두세요.';
     } else if (e.type === 'exitcut') {
-      title = '끼어든 차와 충돌'; sub = '';
+      title = '출구에서 돌아온 차와 충돌'; sub = '';
     } else if (e.type === 'drop') {
-      title = '끼어든 차와 충돌'; sub = '';
+      title = '합류하는 차와 충돌'; sub = '';
       body = SC.dropBody || '';
     } else if (e.type === 'uturn') {
       title = '유턴 차와 충돌'; sub = '';
