@@ -284,7 +284,7 @@ button.card:hover, button.card:focus-visible { border-color: var(--paint); trans
   #caption { top: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); width: min(480px, calc(100% - 32px)); padding: 8px 12px; font-size: 14px; line-height: 1.45; }
 }
 #splash { position: fixed; inset: 0; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; background: #12161c; color: #e8e6e1; font-family: system-ui, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; transition: opacity .5s ease; }
-#splash img { border-radius: 20px; margin-bottom: 8px; }
+#splash .sp-icon { border-radius: 20px; margin-bottom: 8px; overflow: hidden; box-shadow: 0 0 0 1px rgba(255,255,255,.06); }   /* 아이콘을 페이지에 직접 그려 글자와 함께 바로 보인다 */
 #splash b { font-size: 22px; font-weight: 600; letter-spacing: .02em; }
 #splash small { font-size: 14px; color: #9aa0a8; }
 #splash.gone { opacity: 0; pointer-events: none; }
@@ -292,7 +292,7 @@ button.card:hover, button.card:focus-visible { border-color: var(--paint); trans
 </head>
 <body>
 <!-- 시작 화면: 폰 홈 화면 앱의 시작 화면과 같은 모습. 글꼴과 3D 배경이 준비되면 사라진다 (글씨체가 바뀌는 순간을 가린다) -->
-<div id="splash"><img src="icon-192.png" alt="" width="96" height="96"><b>Brake Alive</b><small>사고 예측 시뮬레이터</small></div>
+<div id="splash"><svg class="sp-icon" viewBox="0 0 100 100" width="96" height="96" aria-hidden="true"><rect width="100" height="100" fill="#12161c"/><path d="M46 28H54L106 100H-6Z" fill="#2a313c"/><path d="M49.4 28H49.7L46 100H43.2ZM50.3 28H50.6L56.8 100H54Z" fill="#f2b705"/></svg><b>Brake Alive</b><small>사고 예측 시뮬레이터</small></div>
 <script>try { if (matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches) document.getElementById('splash').remove(); } catch (e) {}   // 홈 화면 앱: 안드로이드 시작 화면이 이미 나온다</script>
 
 <div id="app">
