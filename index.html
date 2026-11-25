@@ -904,6 +904,8 @@ const SCENARIOS = [
     oncoming: [
       // 끼어드는 차: 3차로 200m에서 시속 65km. decS부터 dec로 vSlow까지 줄이고, cutS에서 깜빡이 없이 갈매기 무늬를 가로질러 2차로로 (옆 latV m/s)
       { label: '출구에서 돌아온 차', hazard: true, color: 0xd0b04a, s: 200, x: 8.75, v: 18, exitCut: { decS: 270, dec: 3, vSlow: 8, cutS: 322, latV: 2.0, v2: 16, a2: 1.5 } },
+      // 3차로 출구로 가는 차 3대: 출구에서 돌아온 차 뒤 30m 간격으로 같이 달리다가, 그 차가 머뭇거리는 곳 뒤에서 차례로 멈춘다 (stopS: 앞범퍼가 멈추는 곳 근처, dec m/s²)
+      ...[[170, 310], [140, 303], [110, 296]].map(([s0, stopS]) => ({ label: '3차로 차', fwd: true, s: s0, x: 8.75, v: 18, exitQ: { stopS, dec: 2.5 } })),
       // 1차로: 나와 같은 속도로 출발해 나처럼 가속하는 차들 (14m 간격). 내가 브레이크를 밟지 않으면 1차로에 들어갈 틈이 없다
       ...Array.from({ length: 13 }, (_, k) => ({ label: '1차로 차', fwd: true, pace: 0.9, s: -30 + k * 40, v: 22.2, x: 1.75 })),   // 10m, 50m, … 앞과 30m 뒤에서 출발   // 40m 간격 (시속 80km에서 약 1.8초)
       // 맞은편 (중앙분리대 너머) 세 차로
@@ -2188,6 +2190,7 @@ function carGeo(type) {
 }
 const CAR_GLASS_M = new THREE.MeshPhongMaterial({ color: 0x1a2632, shininess: 90, specular: 0x9aa4ad });
 const CAR_TRIM_M = lambert(0x1d1f22), CAR_HEAD_M = basic(0xfff3d1), CAR_TAIL_M = basic(0x8a1010), CAR_PLATE_M = basic(0xe9e3c9);
+const CAR_BRAKE_M = basic(0xff2a1a);   // 브레이크를 밟은 차의 밝은 미등
 function makeCar(color, lights, type) {
   if (LOOK_OLD) return makeCarOld(color, lights);
   type = type || CAR_TYPE_ORDER[carTypeK++ % CAR_TYPE_ORDER.length];
@@ -3269,7 +3272,8 @@ function newRound() {
     if (o.uturn) { Object.assign(c, { uturn: o.uturn, u: 0, x0: c.x, yaw: 0, v1: o.v, turning: false }); addBlinker(carMeshes[c.idx]); }   // 유턴 직전 왼쪽 깜빡이
     if (o.merge) { Object.assign(c, { fwd: true, merge: true, u: o.u0, cutAt: o.cutAt, cutV: o.cutV, cutA: o.cutA }); Object.assign(c, mergePos(c.u)); }
     if (o.pace) c.pace = o.pace;   // 14: 나처럼 계속 가속한다 (내가 브레이크를 밟지 않으면 나란히)
-    if (o.exitCut) Object.assign(c, { fwd: true, exitCut: o.exitCut, yaw: 0 });   // 14: 분기점에서 갈매기 무늬를 가로질러 끼어드는 차 (깜빡이 없음)
+    if (o.exitCut) Object.assign(c, { fwd: true, exitCut: o.exitCut, yaw: 0 });
+    if (o.exitQ) Object.assign(c, { fwd: true, exitQ: o.exitQ, vT: o.v, yaw: 0 });   // 14: 출구로 가다 멈추는 3차로 차   // 14: 분기점에서 갈매기 무늬를 가로질러 끼어드는 차 (깜빡이 없음)
     if (o.drop) { Object.assign(c, { fwd: true, drop: o.drop, vT: o.v, v: 0, yaw: 0 }); addBlinker(carMeshes[c.idx]); }   // 13: 줄어드는 차로에서 끼어드는 옆 차
   });   // 처음부터 정해진 위치에서 달린다
   carMeshes.forEach(m => m.outer.visible = false);
@@ -3457,7 +3461,7 @@ function step(dt) {
   }
   if (G.bait) { const bt = G.bait, bl = slope(bt.s), bv = bl > 0.03 ? SC.bait.up : (bl < -0.03 ? SC.bait.down : SC.bait.flat); bt.v += (bv - bt.v) * Math.min(1, dt * 0.6); bt.s += bt.v * dt; }
   G.cars.forEach(c => { if (c.wakeT != null && G.t >= c.wakeT) { c.active = true; c.wakeT = null; } });
-  G.cars.forEach(c => { if (!c.active) return; if (c.uturn) uturnMove(c, dt); else if (c.turn) turnMove(c, dt); else if (c.cross) { c.x -= c.v * dt; if (c.x < -150) c.active = false; } else if (c.merge) mergeMove(c, dt); else if (c.drop) dropMove(c, dt); else if (c.exitCut) exitCutMove(c, dt); else if (c.fwd) { if (c.go0 !== undefined) c.v = G.t < c.go0 ? 0 : Math.min(c.vT, c.v + c.acc * dt); if (c.pace) c.v = Math.min(V_MAX, c.v + 4.2 * (1 - c.v / (V_MAX * 1.08)) * (c.pace === true ? 1 : c.pace) * dt); if (c.follow) followMove(c, dt); c.s += c.v * dt; }
+  G.cars.forEach(c => { if (!c.active) return; if (c.uturn) uturnMove(c, dt); else if (c.turn) turnMove(c, dt); else if (c.cross) { c.x -= c.v * dt; if (c.x < -150) c.active = false; } else if (c.merge) mergeMove(c, dt); else if (c.drop) dropMove(c, dt); else if (c.exitCut) exitCutMove(c, dt); else if (c.exitQ) { const Q = c.exitQ; c.v = Math.min(c.vT, Math.sqrt(2 * Q.dec * Math.max(0, Q.stopS - c.s))); c.s += c.v * dt; c.x = 8.75 + exitOff(c.s); } else if (c.fwd) { if (c.go0 !== undefined) c.v = G.t < c.go0 ? 0 : Math.min(c.vT, c.v + c.acc * dt); if (c.pace) c.v = Math.min(V_MAX, c.v + 4.2 * (1 - c.v / (V_MAX * 1.08)) * (c.pace === true ? 1 : c.pace) * dt); if (c.follow) followMove(c, dt); c.s += c.v * dt; }
     else if (c.queue) {   // 녹색불이 켜지고, 가로질러 달려오는 차가 모두 지나간 뒤 출발한다
       if (!c.go && G.t >= SC.signal.greenAt && !G.cars.some(r => r.cross && r.active && r.x > -9)) c.go = true;
       if (c.go) { c.v = Math.min(c.vT, c.v + c.queue.acc * dt); c.s -= c.v * dt; }
@@ -3579,6 +3583,10 @@ function drawWorld(f, showPlayer) {
     if (m.outer.visible) placeVehicle(m, s, f.cx ? f.cx[i] : c.x, !c.fwd, f.cy ? f.cy[i] : 0);   // 같은 방향 차는 뒤집지 않는다
     const cd = damageAt('c' + i, f.t); m.inner.scale.z = (cd.front || cd.rear) ? 0.76 : 1;
     // 깜빡이 (1.5Hz). 좌회전 차: 다 돌 때까지. 유턴 차: 유턴 지점 blink m 전(기본 6m, 약 1초 전; 1번 차는 0 = 돌기 시작하면서)부터 다 돌 때까지
+    if (c.exitQ && isFinite(s)) {   // 14: 감속 구간에 들어서면 브레이크등 (위치로 정하므로 리플레이에서도 같다)
+      if (m.tailM === undefined) m.tailM = m.inner.children.find(o => o.material === CAR_TAIL_M) || null;
+      if (m.tailM) m.tailM.material = s > c.exitQ.stopS - c.vT * c.vT / (2 * c.exitQ.dec) - 0.1 ? CAR_BRAKE_M : CAR_TAIL_M;
+    }
     if (m.blink) { const cy = f.cy ? f.cy[i] : 0, cxv = f.cx ? f.cx[i] : c.x;
       const on = c.drop ? s >= c.drop.blinkS && cxv > 1.8 : c.uturn ? (cxv < 0 && s - c.uturn.S0 < (c.uturn.blink ?? 6)) || (cy > 0.02 && cy < Math.PI - 0.15) : cy < 1.45;
       m.blink.visible = isFinite(s) && f.t >= 0 && on && Math.floor(f.t * 3) % 2 === 0; }
