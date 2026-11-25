@@ -1069,8 +1069,14 @@ function buildWorld() {
 }
 
 /* 고속도로: 중앙분리대 (터널 구간은 터널 벽이 대신한다) */
+// 중앙분리대 콘크리트: 거친 얼룩 + 5m마다 이음매 + 아래쪽은 흙먼지로 조금 어둡게, 윗면 쪽은 밝게 (10m 조각 하나에 한 장)
+const MEDIAN_TEX = (() => { const c = document.createElement('canvas'); c.width = 256; c.height = 64; const g = c.getContext('2d'), im = g.createImageData(256, 64), r = rng(77);
+  for (let y = 0; y < 64; y++) for (let x = 0; x < 256; x++) { const n = r(), sm = Math.sin(x * 0.07 + y * 0.11) * 0.03 + Math.sin(x * 0.013) * 0.04;
+    let k = 0.86 + (n - 0.5) * 0.12 + sm - Math.max(0, (y - 44) / 20) * 0.22 + Math.max(0, (8 - y) / 8) * 0.06; if (x % 128 < 2) k -= 0.3;
+    k = clamp(k, 0, 1) * 255; const i = (y * 256 + x) * 4; im.data[i] = im.data[i + 1] = im.data[i + 2] = k; im.data[i + 3] = 255; }
+  g.putImageData(im, 0, 0); const t = new THREE.CanvasTexture(c); t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy()); return t; })();
 function buildMedian() {
-  const T = R.tunnel, mat = lambert(0x9a968c), SEG = 10;
+  const T = R.tunnel, mat = LOOK_OLD ? lambert(0x9a968c) : new THREE.MeshLambertMaterial({ color: 0xb2aea4, map: MEDIAN_TEX }), SEG = 10;
   // 10m 조각을 도로 경사에 맞춰 기울여 놓는다 (한 번에 그린다)
   const spans = T ? [[-320, T.s0], [T.s1, 1720]] : [[-320, 1720]], pos = [];
   spans.forEach(([a, b]) => { for (let k = a; k < b; k += SEG) pos.push([k, Math.min(k + SEG, b)]); });
@@ -1081,6 +1087,13 @@ function buildMedian() {
     m4.compose(p3, q, sc); im.setMatrixAt(i, m4);
   });
   world.add(im);
+  if (LOOK_OLD) return;
+  // 노란 반사판: 분리대 양옆 20m마다 (높이 0.6m)
+  const refl = [], RM = basic(0xffc21a);
+  spans.forEach(([a, b]) => { for (let k = Math.ceil(a / 20) * 20; k < b; k += 20) refl.push(k); });
+  const ri = new THREE.InstancedMesh(new THREE.BoxGeometry(0.03, 0.09, 0.16), RM, refl.length * 2);
+  refl.forEach((k, i) => [-1, 1].forEach((sg, j) => { p3.set(sg * 0.265, h(k) + 0.6, -k); q.identity(); sc.set(1, 1, 1); m4.compose(p3, q, sc); ri.setMatrixAt(i * 2 + j, m4); }));
+  world.add(ri);
 }
 /* 터널: 벽·천장·나트륨등 + 출구의 하얀 빛 */
 let tunnelExit = null, tunnelGrp = null, tunnelFoot = null, tunnelMouth = null;
@@ -1586,8 +1599,21 @@ function buildRoad() {
       const guide = []; strip(guide, E.guide, E.s0 + 400, q => xc(q) - 0.22, q => xc(q) + 0.22, 0.022, 2);
       ribbonMesh(guide, lineMat(0x2fae62));
       // 갈라진 뒤 삼각형 끝(nose) 너머: 본선과 출구 사이 풀밭 띠
-      const gr = []; strip(gr, E.nose, 1720, q => 7.4, q => Math.max(7.5, xc(q) - 2.1), 0.012, 4);
-      ribbonMesh(gr, lambert(0x4a6b3a));
+      const gL = q => 7.4, gR = q => Math.max(7.5, xc(q) - 2.1), CH = 0.13;   // 잔디밭은 연석 높이(13cm)만큼 올라와 있다
+      const gr = []; strip(gr, E.nose, 1720, gL, gR, CH - 0.01, 2);
+      ribbonMesh(gr, LOOK_OLD ? lambert(0x4a6b3a) : new THREE.MeshLambertMaterial({ color: 0x5f8a46, map: GROUND_TEX }));
+      if (!LOOK_OLD) {   // 낮은 회색 연석: 윗면 띠 + 아스팔트 쪽 옆면 (삼각형 끝은 둥글게 대신 가로로 막는다)
+        const cb = [], cside = [];
+        strip(cb, E.nose, 1720, q => gL(q) - 0.2, gL, CH, 2); strip(cb, E.nose, 1720, gR, q => gR(q) + 0.2, CH, 2);
+        const wall = (fx, dir) => { for (let q = E.nose; q < 1720; q += 2) { const q2 = Math.min(q + 2, 1720), xa = fx(q) + dir * 0.2, xb = fx(q2) + dir * 0.2;
+          const A0 = wpos(q, xa, h(q)), A1 = wpos(q, xa, h(q) + CH), B1 = wpos(q2, xb, h(q2) + CH), B0 = wpos(q2, xb, h(q2));
+          cside.push(A0.x, A0.y, A0.z, A1.x, A1.y, A1.z, B1.x, B1.y, B1.z, A0.x, A0.y, A0.z, B1.x, B1.y, B1.z, B0.x, B0.y, B0.z); } };
+        wall(gL, -1); wall(gR, 1);
+        const n0 = wpos(E.nose, gL(E.nose) - 0.2, h(E.nose)), n1 = wpos(E.nose, gR(E.nose) + 0.2, h(E.nose)), n2 = wpos(E.nose, gR(E.nose) + 0.2, h(E.nose) + CH), n3 = wpos(E.nose, gL(E.nose) - 0.2, h(E.nose) + CH);
+        cside.push(n0.x, n0.y, n0.z, n1.x, n1.y, n1.z, n2.x, n2.y, n2.z, n0.x, n0.y, n0.z, n2.x, n2.y, n2.z, n3.x, n3.y, n3.z);
+        const cm = new THREE.MeshLambertMaterial({ color: 0x9c9a94, side: THREE.DoubleSide });
+        ribbonMesh(cb, cm); ribbonMesh(cside, cm);
+      }
     }
     if (M) {
       const xa = HW + 1.95, L = M.len, ca = Math.cos(M.ang), sa = Math.sin(M.ang);
