@@ -1593,7 +1593,10 @@ function buildRoad() {
         arr.push(...P(s1 - ns, x1 - nx), ...P(s1 + ns, x1 + nx), ...P(s2 + ns, x2 + nx), ...P(s1 - ns, x1 - nx), ...P(s2 + ns, x2 + nx), ...P(s2 - ns, x2 - nx)); };
       for (let q = E.s0 + 6; q < E.nose - 1; q += 3) {
         const xl = xc(q + 2) - 1.85, mid = (7.1 + xl) / 2; if (xl - 7.1 < 0.5) continue;
-        segS(white, q, mid, q + 2, 7.15, 0.3, 0.02); segS(white, q, mid, q + 2, xl, 0.3, 0.02);
+        // V자 하나를 한 덩어리로: 꼭짓점 쪽을 비스듬히 맞물린(뾰족한) 띠. 두 막대를 겹쳐 그리면 꼭짓점이 울퉁불퉁해진다
+        const tk = 0.45, P = (qq, x) => { const v = wpos(qq, x, h(qq) + 0.02); return [v.x, v.y, v.z]; };
+        const p1 = P(q + 2, 7.15), p2 = P(q, mid), p3 = P(q + 2, xl), p4 = P(q + 2 + tk, xl), p5 = P(q + tk, mid), p6 = P(q + 2 + tk, 7.15);
+        white.push(...p1, ...p5, ...p6, ...p1, ...p2, ...p5, ...p2, ...p4, ...p5, ...p2, ...p3, ...p4);   // 위를 보는 면 (반시계)
       }
       // 노면색깔유도선 (녹색): 3차로 가운데를 따라 출구 차로로 이어진다
       const guide = []; strip(guide, E.guide, E.s0 + 400, q => xc(q) - 0.22, q => xc(q) + 0.22, 0.022, 2);
