@@ -4384,6 +4384,13 @@ function drawPlan(f) {
   // 평면도 이름표는 '나'만 (사용자 결정): 앞차·다른 차·보행자는 이름 없이 그린다
   car(ts, tx, L.hl, L.hw, '#d5d0c4', '');
   G.cars.forEach((c, i) => { const cs = f.cs[i]; if (isFinite(cs)) car(cs, f.cx ? f.cx[i] : c.x, CAR_HL, CAR_HW, c.isHazard ? '#ff5a4e' : '#8a929c', '', false, f.cy ? f.cy[i] : 0); });
+  if (f.cb) G.cars.forEach((c, i) => {   // 브레이크등: 브레이크를 밟은 차 뒤쪽 양 모서리에 붉은 빛 번짐 (주행 기록의 cb)
+    const cs = f.cs[i]; if (!f.cb[i] || !isFinite(cs)) return;
+    const cxv = f.cx ? f.cx[i] : c.x, rx = X(cs - CAR_HL), r = Math.max(7, 1.6 * k);
+    [-0.6, 0.6].forEach(o => { const yy = Y(cxv + o * CAR_HW), gr = pctx.createRadialGradient(rx, yy, 0, rx, yy, r);
+      gr.addColorStop(0, 'rgba(255,90,60,1)'); gr.addColorStop(0.35, 'rgba(255,40,24,.75)'); gr.addColorStop(1, 'rgba(255,30,20,0)');
+      pctx.fillStyle = gr; pctx.beginPath(); pctx.arc(rx, yy, r, 0, 7); pctx.fill(); });
+  });
   car(f.ps, f.px, CAR_HL, CAR_HW, '#4c8dff', '나', true);
   G.peds.forEach((q, i) => {
     if (!f.pd || f.pd.length < (i + 1) * 6) return;
