@@ -2193,7 +2193,7 @@ function carGeo(type) {
 }
 const CAR_GLASS_M = new THREE.MeshPhongMaterial({ color: 0x1a2632, shininess: 90, specular: 0x9aa4ad });
 const CAR_TRIM_M = lambert(0x1d1f22), CAR_HEAD_M = basic(0xfff3d1), CAR_TAIL_M = basic(0x8a1010), CAR_PLATE_M = basic(0xe9e3c9);
-const CAR_BRAKE_M = basic(0xff2a1a);   // 브레이크를 밟은 차의 밝은 미등
+const CAR_BRAKE_M = basic(0xff3a26), _bgv = new THREE.Vector3();   // 브레이크를 밟은 차의 밝은 미등
 function makeCar(color, lights, type) {
   if (LOOK_OLD) return makeCarOld(color, lights);
   type = type || CAR_TYPE_ORDER[carTypeK++ % CAR_TYPE_ORDER.length];
@@ -3588,7 +3588,17 @@ function drawWorld(f, showPlayer) {
     // 깜빡이 (1.5Hz). 좌회전 차: 다 돌 때까지. 유턴 차: 유턴 지점 blink m 전(기본 6m, 약 1초 전; 1번 차는 0 = 돌기 시작하면서)부터 다 돌 때까지
     if (c.exitQ && isFinite(s)) {   // 14: 감속하는 동안 브레이크등
       if (m.tailM === undefined) m.tailM = m.inner.children.find(o => o.material === CAR_TAIL_M) || null;
-      if (m.tailM) m.tailM.material = f.cb && f.cb[i] ? CAR_BRAKE_M : CAR_TAIL_M;   // 주행 기록에 남긴 브레이크 상태 (리플레이에서도 같다)
+      const on = !!(f.cb && f.cb[i]);   // 주행 기록에 남긴 브레이크 상태 (리플레이에서도 같다)
+      if (m.tailM) m.tailM.material = on ? CAR_BRAKE_M : CAR_TAIL_M;
+      if (on && !m.brakeGlow && m.dims) {   // 붉은 빛 번짐 두 개 (양쪽 미등 자리, 처음 밟을 때 한 번 만든다)
+        const D = m.dims, gg = new THREE.Group();
+        [-1, 1].forEach(sg => { const hh = halo(1.6, 0.9); hh.material.color.setHex(0xff2a18); hh.position.set(sg * (D.W / 2 - 0.3), D.tail, D.L / 2 + 0.25); gg.add(hh); });
+        m.inner.add(gg); m.brakeGlow = gg;
+      }
+      if (m.brakeGlow) {
+        m.brakeGlow.visible = on;
+        if (on) { m.outer.getWorldPosition(_bgv); const k = 1 + camera.position.distanceTo(_bgv) / 45; m.brakeGlow.children.forEach(h0 => h0.scale.set(1.6 * k, 1.6 * k, 1)); }   // 멀수록 덜 작아지게 (멀리서도 보인다)
+      }
     }
     if (m.blink) { const cy = f.cy ? f.cy[i] : 0, cxv = f.cx ? f.cx[i] : c.x;
       const on = c.drop ? s >= c.drop.blinkS && cxv > 1.8 : c.uturn ? (cxv < 0 && s - c.uturn.S0 < (c.uturn.blink ?? 6)) || (cy > 0.02 && cy < Math.PI - 0.15) : cy < 1.45;
