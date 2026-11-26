@@ -430,6 +430,8 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
    시나리오마다 다른 값은 모두 여기에 둔다. 엔진은 지금 고른 시나리오(SC)만 읽는다.
    새 시나리오는 이 목록에 데이터를 추가하고 ready: true로 바꾸면 선택 화면에 열린다.
    (커브·교차로·보행자처럼 엔진에 없는 요소가 필요하면 엔진 기능도 함께 늘려야 한다) */
+// 실제 도로에 흔한 차 색 (흰색·은색·검정·회색이 많고, 가끔 남색·빨강·파랑·베이지·짙은 녹색)
+const CAR_COLORS = [0xe8e6e1, 0xb9b9b4, 0x1c1e22, 0x6b6e73, 0x24324f, 0x8c1f1f, 0x2f5fa0, 0xcbbf9e, 0x2f4a3a, 0xf0efea, 0x4a4d52, 0x9aa3ad];
 const SCENARIOS = [
   {
     id: '01', title: '고갯마루 추월', ready: true,
@@ -906,9 +908,9 @@ const SCENARIOS = [
       { label: '출구에서 돌아온 차', hazard: true, color: 0xd0b04a, s: 200, x: 8.75, v: 18, exitCut: { decS: 270, dec: 3, vSlow: 8, cutS: 322, latV: 2.0, v2: 28, a2: 2.6 } },
       // 3차로 출구로 가는 차 3대: 내 바로 앞(15·45·75m)에서 나와 같은 속도로 출발해 나처럼 가속하며 3차로를 막고(pace),
       // 분기점이 가까워지면 dec m/s²로 줄여 stopS에서 차례로 멈춘다 (출구에서 돌아온 차가 꺾을 때는 아직 한참 뒤라 가리지 않는다)
-      ...[[15, 320], [45, 313], [75, 306]].map(([s0, stopS]) => ({ label: '3차로 차', fwd: true, s: s0, x: 8.75, v: 22.2, exitQ: { stopS, dec: 5, pace: 0.9 } })),
+      ...[[15, 320, 0x2f5fa0], [45, 313, 0x8c1f1f], [75, 306, 0xd9d6cf]].map(([s0, stopS, color]) => ({ label: '3차로 차', color, fwd: true, s: s0, x: 8.75, v: 22.2, exitQ: { stopS, dec: 5, pace: 0.75 } })),
       // 1차로: 나와 같은 속도로 출발해 나처럼 가속하는 차들 (14m 간격). 내가 브레이크를 밟지 않으면 1차로에 들어갈 틈이 없다
-      ...Array.from({ length: 13 }, (_, k) => ({ label: '1차로 차', fwd: true, pace: 0.9, s: -30 + k * 40, v: 22.2, x: 1.75 })),   // 10m, 50m, … 앞과 30m 뒤에서 출발   // 40m 간격 (시속 80km에서 약 1.8초)
+      ...Array.from({ length: 13 }, (_, k) => ({ label: '1차로 차', color: CAR_COLORS[(k * 3) % CAR_COLORS.length], fwd: true, pace: 0.9, s: -30 + k * 40, v: 22.2, x: 1.75 })),   // 10m, 50m, … 앞과 30m 뒤에서 출발   // 40m 간격 (시속 80km에서 약 1.8초)
       // 맞은편 (중앙분리대 너머) 세 차로
       ...Array.from({ length: 8 }, (_, k) => [{ s: 120 + k * 80, v: 22, x: -1.75 }, { s: 150 + k * 80, v: 20, x: -5.25 }, { s: 180 + k * 80, v: 18, x: -8.75 }]).flat(),
     ],
