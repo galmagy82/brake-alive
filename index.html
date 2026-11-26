@@ -2294,6 +2294,12 @@ function upgradeVan(outer) {
     kid(body, new THREE.BoxGeometry(0.08, 0.3, 0.18), LEAD_TRIM_M, sg * 1.03, 0.1, -1.6);         // 사이드미러
   });
   kid(nose, new THREE.BoxGeometry(1.0, 0.22, 0.05), LEAD_TRIM_M, 0, -0.15, -0.53);               // 그릴
+  // 둥근 모서리 때문에 차체 뒤끝이 2.66으로 늘어나 미등·범퍼 띠·번호판·비상등·브레이크등이 묻혔다 → 바깥으로 꺼낸다
+  const U = outer.userData;
+  U.tails.forEach(t => t.position.z = 2.70); U.bar.position.z = 2.705; U.plate.position.z = 2.72;
+  U.brake.children.forEach(o => { o.position.z += o.isSprite ? 0.05 : (o.position.y > 2 ? 0.07 : 0.06); });
+  U.blink.children.forEach(o => { if (o.position.z > 0) o.position.z += 0.06; });
+  outer.add(box(1.6, 0.55, 0.03, LEAD_GLASS_M, 0, 1.65, 2.68));   // 뒷유리
 }
 function upgradeBus(outer) {
   const [front, body, band, glass] = outer.children;
