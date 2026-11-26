@@ -4042,6 +4042,7 @@ function frameAt(t) {
   const f = { t: A.t + (b.t - A.t) * k };
   ['ps', 'px', 'py', 'ts', 'tx', 'ty', 'tp', 'br', 'bs', 'bx', 'by'].forEach(key => { if (b[key] !== undefined) f[key] = A[key] !== undefined ? M(A[key], b[key]) : b[key]; });
   ['cs', 'cx', 'cy'].forEach(key => { if (b[key]) f[key] = b[key].map((v, i) => A[key] ? M(A[key][i], v) : v); });
+  if (b.cb) f.cb = b.cb;   // 브레이크등 (켜짐/꺼짐은 보간하지 않는다)
   // 보행자: 걷던 프레임과 날아가는 프레임은 자세 기준이 달라(발 / 몸 가운데) 섞지 않는다
   if (b.bk) f.bk = b.bk.map((v, i) => A.bk ? M(A.bk[i], v) : v);
   if (b.pq) f.pq = b.pq.map((v, i) => A.pq ? M(A.pq[i], v) : v);
