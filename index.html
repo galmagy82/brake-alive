@@ -1538,7 +1538,7 @@ function buildNeighborhood() {
   });
   // 건물 터: 리플레이에서 건물 대신 보이는 높이 30cm 회색 판 (지도처럼 길과 건물 자리를 구분)
   const plateMat = lambert(0x5d6066);
-  grp.children.forEach(m => { const gp = m.geometry && m.geometry.parameters; if (!gp || gp.width < 3 || gp.depth < 3) return;
+  grp.children.forEach(m => { const gp = m.geometry && m.geometry.parameters; if (!gp || !(gp.width >= 3) || !(gp.depth >= 3)) return;   // 네모난 건물만 (물탱크 같은 원통은 폭·깊이 값이 없어 NaN 판이 생겼다)
     const pl = new THREE.Mesh(new THREE.BoxGeometry(gp.width - 0.3, 0.3, gp.depth - 0.3), plateMat); pl.position.set(m.position.x, 0.15, m.position.z); foot.add(pl); });
   // 바닥: '천천히' 글씨와 빗물받이
   const paint = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 1.3), new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, map: texFrom(256, 104, g => {
