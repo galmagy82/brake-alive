@@ -3674,7 +3674,7 @@ function drawWorld(f, showPlayer) {
       // 건널 때는 오른쪽(+x), 인도에서는 내 쪽(-s)을 본다
       // 0: +x 쪽, 1: 내 쪽(-s), 2: -x 쪽, 3: GOAL 쪽(+s)을 본다
       // 3 + 기울기: 비틀거릴 때 몸이 좌우로 기우뚱
-      pm.outer.rotation.set(0, (qr > 8 ? -(qr - 10) : qr > 2.5 ? 0 : qr > 1.5 ? Math.PI / 2 : qr > 0.5 ? Math.PI : -Math.PI / 2) - wyaw(qs), qr > 2.5 && qr < 8 ? qr - 3 : 0);   // 10+각도: 비스듬히 걷는 방향 pm.spin.position.y = 0.9; pm.spin.rotation.set(0, 0, 0);
+      pm.outer.rotation.set(0, (qr > 8 ? -(qr - 10) : qr > 2.5 ? 0 : qr > 1.5 ? Math.PI / 2 : qr > 0.5 ? Math.PI : -Math.PI / 2) - wyaw(qs), qr > 2.5 && qr < 8 ? qr - 3 : 0); pm.spin.position.y = 0.9; pm.spin.rotation.set(0, 0, 0);   // 10+각도: 비스듬히 걷는 방향
       const sw = Math.sin(qph * 4.2 / sc) * 0.5; pm.legL.rotation.x = sw; pm.legR.rotation.x = -sw; pm.armL.rotation.x = -sw * 0.8; pm.armR.rotation.x = sw * 0.8;
     }
     if (pm.isModel) pedModelPose(pm, i, qph, mode, f.t);
