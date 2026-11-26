@@ -2309,6 +2309,17 @@ function upgradeBus(outer) {
   [-1, 1].forEach(sg => kid(body, new THREE.BoxGeometry(0.08, 0.42, 0.2), LEAD_TRIM_M, sg * 1.38, 0.9, -5.45));   // 사이드미러
   front.material = LEAD_TRIM_M;
   front.geometry = new THREE.BoxGeometry(2.56, 1.0, 0.3);   // 앞범퍼를 차체(폭 2.5)보다 양옆 3cm 넓게: 옆면이 차체 옆면과 겹쳐 깜빡이지 않게
+  // 둥근 모서리 때문에 차체 앞뒤 끝이 ±5.68로 늘어나 앞유리·행선지·미등·범퍼 띠·번호판·비상등이 차체 안에 묻혔다 → 바깥으로 꺼낸다
+  glass.position.z = -5.70; outer.children[4].position.z = -5.715;   // 앞유리, 행선지 표시
+  const U = outer.userData;
+  U.tails.forEach(t => t.position.z = 5.72); U.bar.position.z = 5.73; U.plate.position.z = 5.745;
+  U.blink.children.forEach(o => { if (o.position.z > 0) o.position.z += 0.08; });   // 뒤쪽 비상등
+  outer.add(box(2.2, 1.0, 0.04, LEAD_GLASS_M, 0, 2.45, 5.70));   // 뒷유리
+  // 브레이크등: 미등 자리 밝은 빨강 + 빛 번짐 + 뒷유리 위 보조 제동등 (켜고 끄는 것은 drawWorld의 앞차 브레이크 상태)
+  const g = new THREE.Group(), red = basic(0xff3a26);
+  [-1.0, 1.0].forEach(x => { g.add(box(0.27, 0.42, 0.05, red, x, 1.0, 5.735)); const hh = halo(1.2, 0.75); hh.material.color.setHex(0xff2a18); hh.position.set(x, 1.0, 5.86); g.add(hh); });
+  g.add(box(0.8, 0.07, 0.04, red, 0, 3.02, 5.715));
+  g.visible = false; outer.add(g); U.brake = g;
 }
 function makeTruck() {
   const outer = new THREE.Group();
@@ -2328,6 +2339,11 @@ function makeTruck() {
   const tailGlow = new THREE.Group();
   [-1.0, 1.0].forEach(x => { const g = halo(1.3, 0.55); g.material.color.setHex(0xff3322); g.position.set(x, 0.9, 4.75); tailGlow.add(g); });
   outer.add(tailGlow); outer.userData.tailGlow = tailGlow;
+  {   // 브레이크등: 미등 자리 밝은 빨강 + 빛 번짐 (켜고 끄는 것은 drawWorld의 앞차 브레이크 상태)
+    const g = new THREE.Group(), red = basic(0xff3a26);
+    [-1.0, 1.0].forEach(x => { g.add(box(0.32, 0.2, 0.05, red, x, 0.9, 4.645)); const hh = halo(1.2, 0.75); hh.material.color.setHex(0xff2a18); hh.position.set(x, 0.9, 4.78); g.add(hh); });
+    g.visible = false; outer.add(g); outer.userData.brake = g;
+  }
   // 짐칸 뒷면 반사띠 (빨강·흰색 줄무늬): 아래 가로 띠 한 줄
   const bandH = new THREE.Mesh(new THREE.PlaneGeometry(2.44, 0.12), REFLECT_M(8, 1));
   bandH.position.set(0, 1.22, 4.612); outer.add(bandH);
