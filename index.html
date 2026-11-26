@@ -4635,7 +4635,7 @@ function loop(now) {
       const cs = G.cars.map((c, i) => { const n = c.active ? c.s : NaN; return isFinite(n) ? L(pr && pr.cs[i], n) : n; });
       const cx = G.cars.map((c, i) => L(pr && pr.cx[i], c.x)), cy = G.cars.map(c => c.yaw || 0);
       const pd = pedFrame();
-      drawWorld({ t: G.t, ps, px, ts, bs, cs, cx, cy, cb: SC.road.exit ? G.cars.map(c => c.brk ? 1 : 0) : undefined, pd, bk: bikeFrame() }, false);   // cb: 브레이크등 (운전 중에도) driveCamera(dt, ps, px, L(pr && pr.py, p.yaw || 0)); updateHUD(); drawNav(ps, px); engine(p.v, true); brakeSound(keys.down, p.v); curbSound(G.curb, p.v);
+      drawWorld({ t: G.t, ps, px, ts, bs, cs, cx, cy, cb: SC.road.exit ? G.cars.map(c => c.brk ? 1 : 0) : undefined, pd, bk: bikeFrame() }, false); driveCamera(dt, ps, px, L(pr && pr.py, p.yaw || 0)); updateHUD(); drawNav(ps, px); engine(p.v, true); brakeSound(keys.down, p.v); curbSound(G.curb, p.v);   // cb: 브레이크등 (운전 중에도)
     }
   } else if (state === 'countdown') {
     const p = G.p; G.cd -= dt;
