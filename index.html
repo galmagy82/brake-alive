@@ -2193,7 +2193,7 @@ function carGeo(type) {
 }
 const CAR_GLASS_M = new THREE.MeshPhongMaterial({ color: 0x1a2632, shininess: 90, specular: 0x9aa4ad });
 const CAR_TRIM_M = lambert(0x1d1f22), CAR_HEAD_M = basic(0xfff3d1), CAR_TAIL_M = basic(0x8a1010), CAR_PLATE_M = basic(0xe9e3c9);
-const CAR_BRAKE_M = basic(0xff3a26), _bgv = new THREE.Vector3();   // 브레이크를 밟은 차의 밝은 미등
+const CAR_BRAKE_M = basic(0xff3a26), _bgv = new THREE.Vector3(), BRAKE_GLOW_N = 12, BRAKE_GLOW_R = 150;   // 브레이크를 밟은 차의 밝은 미등
 function makeCar(color, lights, type) {
   if (LOOK_OLD) return makeCarOld(color, lights);
   type = type || CAR_TYPE_ORDER[carTypeK++ % CAR_TYPE_ORDER.length];
@@ -2691,6 +2691,7 @@ function chainStep(dt) {
     } else if (C.tc > CR_REACT && b.brakeDec) {   // 부딪히지 않은 운전자: 반응 후 급제동
       const d = b.brakeDec * dt; b.vs = Math.abs(b.vs) <= d ? 0 : b.vs - Math.sign(b.vs) * d;
     }
+    { const sp = Math.hypot(b.vs, b.vx); if (b.psp !== undefined && ((b.psp - sp) / dt > 0.5 || sp < 0.05)) b.brkT = G.t; b.brk = b.brkT !== undefined && G.t - b.brkT < 0.3; b.psp = sp; }   // 사고 후에도 브레이크등
     b.s += b.vs * dt; b.x = R.type === 'alley' ? clamp(b.x + b.vx * dt, -7, 7) : clamp(b.x + b.vx * dt, -(R.half + 60), R.half + 60); b.yaw += b.wr * dt;
   }
   if (R.type === 'alley') alleyWalls();
@@ -2981,7 +2982,8 @@ function pushChainFrame() {
   const bk = bikeFrame();
   const bb = C.byId.bait;
   // 충돌 순간 밟고 있던 브레이크는 그대로 밟고 있다
-  G.frames.push({ t: G.t, br: G.end && G.end.br ? 1 : 0, ps: me.s, px: me.x, py: me.yaw, ts: tb.s, tx: tb.x, ty: tb.yaw, tp, cs, cx, cy, pd, pq, bk, bs: bb ? bb.s : undefined, bx: bb ? bb.x : undefined, by: bb ? bb.yaw : undefined });
+  const cb = G.cars.map(c => { const b = C.byId['c' + c.idx]; return b && b.brk && !c.parked ? 1 : 0; }), tbk = tb.brk && !(SC.truck.parked && !SC.truck.goAfterPed) ? 1 : 0;
+  G.frames.push({ t: G.t, br: G.end && G.end.br ? 1 : 0, ps: me.s, px: me.x, py: me.yaw, ts: tb.s, tx: tb.x, ty: tb.yaw, tp, cs, cx, cy, cb, tbk, pd, pq, bk, bs: bb ? bb.s : undefined, bx: bb ? bb.x : undefined, by: bb ? bb.yaw : undefined });
 }
 // 어떤 차가 시각 t까지 어디가 찌그러졌나
 function damageAt(id, t) {
@@ -3337,6 +3339,12 @@ function exitCutMove(c, dt) {
   c.s += c.v * dt;
   const vx = (c.x - x0) / dt; c.yaw = Math.abs(vx) > 1e-3 ? Math.atan2(-vx, c.v) : 0;
 }
+function brakeState(o, v, dt, parked) {
+  if (parked || !isFinite(v)) { o.brk = false; o.pv = undefined; return; }
+  const sp = Math.abs(v), dec = o.pv === undefined ? 0 : (o.pv - sp) / dt;
+  if (dec > 0.5 || sp < 0.05) o.brkT = G.t;
+  o.brk = o.brkT !== undefined && G.t - o.brkT < 0.3; o.pv = sp;
+}
 function ev(type, data) { G.events.push(Object.assign({ t: G.t, type }, data || {})); }
 // 비보호 좌회전 차: 직진하다 회전 시작점 앞에서 속도를 줄이고, 1/4 원을 그리며 내 앞을 가로질러 오른쪽 도로로 나간다.
 // 위치와 속도는 정해져 있고 내 운전에 반응하지 않는다. c.u = 출발점부터 달린 거리
@@ -3469,6 +3477,9 @@ function step(dt) {
       if (!c.go && G.t >= SC.signal.greenAt && !G.cars.some(r => r.cross && r.active && r.x > -9)) c.go = true;
       if (c.go) { c.v = Math.min(c.vT, c.v + c.queue.acc * dt); c.s -= c.v * dt; }
     } else c.s -= c.v * dt; if (c.s < p.s - 300) c.active = false; });
+  // 브레이크등 (모든 차 공통): 초당 0.5m/s 넘게 줄거나 서 있으면 켠다. 일정한 서행·가속에는 끈다. 끊겨도 0.3초는 켜 둔다 (깜빡임 방지)
+  G.cars.forEach(c => brakeState(c, c.active ? c.v : NaN, dt, c.parked));
+  brakeState(tr, tr.v, dt, SC.truck.parked && !SC.truck.goAfterPed);   // 앞차: 진짜 주차된 차는 끄고, 신호 대기(11 버스)는 켠다
 
 
   if (R.tunnel && R.tunnel.portal && prevS < R.tunnel.s0 && p.s >= R.tunnel.s0) {   // 터널에 들어서는 순간 (어둠 적응 시작)
@@ -3523,7 +3534,7 @@ function step(dt) {
       else if (vis && G.flags.pedHidT && !G.flags.pedBackT) { G.flags.pedBackT = t; ev('pedBack'); }
     }
   }
-  G.frames.push({ t, br: held || (keys.down && p.v > 0.1) ? 1 : 0, ps: p.s, px: p.x, py: p.yaw || 0, ts: tr.s, bs: G.bait ? G.bait.s : undefined, cs: G.cars.map(c => c.active ? c.s : NaN), cx: G.cars.map(c => c.x), cy: G.cars.map(c => c.yaw || 0), cb: SC.road.exit ? G.cars.map(c => c.brk ? 1 : 0) : undefined, pd: pedFrame(), bk: bikeFrame() });   // cb: 브레이크등 (14)
+  G.frames.push({ t, br: held || (keys.down && p.v > 0.1) ? 1 : 0, ps: p.s, px: p.x, py: p.yaw || 0, ts: tr.s, bs: G.bait ? G.bait.s : undefined, cs: G.cars.map(c => c.active ? c.s : NaN), cx: G.cars.map(c => c.x), cy: G.cars.map(c => c.yaw || 0), cb: G.cars.map(c => c.brk ? 1 : 0), tbk: tr.brk ? 1 : 0, pd: pedFrame(), bk: bikeFrame() });   // cb·tbk: 브레이크등 (차들·앞차)
   if (p.v > 0.5 && G.peds.some(q => Math.abs(q.s - p.s) < 2.4 && Math.abs(q.x - p.x) < 0.9 + 0.25 * q.scale + (q.bike ? 0.55 : 0))) return crash('ped', null);
 
   if (Math.abs(tr.s - p.s) < SC.truck.hl + 2.0 && Math.abs(tr.x - p.x) < SC.truck.hw + 0.85) return crash('truck', null);
@@ -3565,7 +3576,7 @@ function drawWorld(f, showPlayer) {
   placeVehicle(truckMesh, f.ts, f.tx ?? SC.truck.x, false, (f.ty || 0) + (SC.truck.dir < 0 ? Math.PI : 0), f.tp || 0);   // 마주 오는 앞차(버스)는 반대로 돌려 놓는다
   const td = damageAt('truck', f.t);
   truckDamage(td.rear ? 'rear' : td.front ? 'front' : null);
-  if (truckMesh.userData.brake) truckMesh.userData.brake.visible = Math.abs(SC.truck.flat) < 0.01 && !td.rear && !SC.truck.parked;   // 서 있는 앞차는 브레이크를 밟고 있다 (뒤를 받히면 깨진다)
+  if (truckMesh.userData.brake) truckMesh.userData.brake.visible = !td.rear && (f.tbk !== undefined ? f.tbk > 0.5 : (Math.abs(SC.truck.flat) < 0.01 && !SC.truck.parked));   // 서 있는 앞차는 브레이크를 밟고 있다 (뒤를 받히면 깨진다)
   playerMesh.brake.visible = showPlayer && (f.br || 0) > 0.5;   // 내가 브레이크를 밟은 순간 (리플레이)
   truckMesh.userData.blink.visible = !!(C && crashT > 0.9 && Math.floor(crashT * 3) % 2 === 0);   // 사고 후 비상등 깜빡임 (1.5Hz)
   if (SC.bait && !baitMesh) baitMesh = makeLead('truck');
@@ -3580,30 +3591,35 @@ function drawWorld(f, showPlayer) {
   playerMesh.outer.visible = showPlayer;
   if (showPlayer) placeVehicle(playerMesh, f.ps, f.px, false, f.py || 0);
   const md = damageAt('me', f.t); playerMesh.inner.scale.z = (md.front || md.rear) ? 0.8 : 1;   // 찌그러진 차체
+  const brakeCands = [];   // 브레이크를 밟은 차 [거리, 모습]
   G.cars.forEach((c, i) => {
     const m = carMeshes[i], s = f.cs[i];
     m.outer.visible = isFinite(s) && Math.abs(s - f.ps) < CAR_FAR;
     if (m.outer.visible) placeVehicle(m, s, f.cx ? f.cx[i] : c.x, !c.fwd, f.cy ? f.cy[i] : 0);   // 같은 방향 차는 뒤집지 않는다
     const cd = damageAt('c' + i, f.t); m.inner.scale.z = (cd.front || cd.rear) ? 0.76 : 1;
     // 깜빡이 (1.5Hz). 좌회전 차: 다 돌 때까지. 유턴 차: 유턴 지점 blink m 전(기본 6m, 약 1초 전; 1번 차는 0 = 돌기 시작하면서)부터 다 돌 때까지
-    if (c.exitQ && isFinite(s)) {   // 14: 감속하는 동안 브레이크등
+    if (isFinite(s) && m.outer.visible) {   // 브레이크등 (모든 차): 미등을 밝은 빨강으로. 빛 번짐은 가까운 차만 (아래에서 고른다)
+      const on = !!(f.cb && f.cb[i]);
       if (m.tailM === undefined) m.tailM = m.inner.children.find(o => o.material === CAR_TAIL_M) || null;
-      const on = !!(f.cb && f.cb[i]);   // 주행 기록에 남긴 브레이크 상태 (리플레이에서도 같다)
       if (m.tailM) m.tailM.material = on ? CAR_BRAKE_M : CAR_TAIL_M;
-      if (on && !m.brakeGlow && m.dims) {   // 붉은 빛 번짐 두 개 (양쪽 미등 자리, 처음 밟을 때 한 번 만든다)
-        const D = m.dims, gg = new THREE.Group();
-        [-1, 1].forEach(sg => { const hh = halo(1.6, 0.9); hh.material.color.setHex(0xff2a18); hh.position.set(sg * (D.W / 2 - 0.3), D.tail, D.L / 2 + 0.25); gg.add(hh); });
-        m.inner.add(gg); m.brakeGlow = gg;
-      }
-      if (m.brakeGlow) {
-        m.brakeGlow.visible = on;
-        if (on) { m.outer.getWorldPosition(_bgv); const k = 1 + camera.position.distanceTo(_bgv) / 45; m.brakeGlow.children.forEach(h0 => h0.scale.set(1.6 * k, 1.6 * k, 1)); }   // 멀수록 덜 작아지게 (멀리서도 보인다)
-      }
+      if (on) brakeCands.push([Math.abs(s - f.ps), m]);
     }
+    if (m.brakeGlow) m.brakeGlow.visible = false;
     if (m.blink) { const cy = f.cy ? f.cy[i] : 0, cxv = f.cx ? f.cx[i] : c.x;
       const on = c.drop ? s >= c.drop.blinkS && cxv > 1.8 : c.uturn ? (cxv < 0 && s - c.uturn.S0 < (c.uturn.blink ?? 6)) || (cy > 0.02 && cy < Math.PI - 0.15) : cy < 1.45;
       m.blink.visible = isFinite(s) && f.t >= 0 && on && Math.floor(f.t * 3) % 2 === 0; }
   });
+  // 브레이크등 빛 번짐: 내 차에서 BRAKE_GLOW_R m 안, 가까운 BRAKE_GLOW_N대까지만 (많은 차가 한꺼번에 서도 그리기 부담이 늘지 않게)
+  brakeCands.sort((a, b) => a[0] - b[0]);
+  for (let k = 0; k < brakeCands.length && k < BRAKE_GLOW_N; k++) {
+    const [d, m] = brakeCands[k]; if (d > BRAKE_GLOW_R || !m.dims) break;
+    if (!m.brakeGlow) { const D = m.dims, gg = new THREE.Group();
+      [-1, 1].forEach(sg => { const hh = halo(1.2, 0.75); hh.material.color.setHex(0xff2a18); hh.position.set(sg * (D.W / 2 - 0.3), D.tail, D.L / 2 + 0.22); gg.add(hh); });
+      m.inner.add(gg); m.brakeGlow = gg; }
+    m.brakeGlow.visible = true;
+    m.outer.getWorldPosition(_bgv); const kk = 1 + camera.position.distanceTo(_bgv) / 60;   // 멀수록 덜 작아지게 (조금 작게)
+    m.brakeGlow.children.forEach(h0 => h0.scale.set(1.2 * kk, 1.2 * kk, 1));
+  }
   pedMeshes.forEach((pm, i) => {
     const on = !!(f.pd && f.pd.length >= (i + 1) * 6); pm.outer.visible = on; if (!on) return;
     const [qs, qx, qy, qr, qph, mode] = f.pd.slice(i * 6, i * 6 + 6), sc = pm.outer.scale.x;
@@ -4042,7 +4058,7 @@ function frameAt(t) {
   const f = { t: A.t + (b.t - A.t) * k };
   ['ps', 'px', 'py', 'ts', 'tx', 'ty', 'tp', 'br', 'bs', 'bx', 'by'].forEach(key => { if (b[key] !== undefined) f[key] = A[key] !== undefined ? M(A[key], b[key]) : b[key]; });
   ['cs', 'cx', 'cy'].forEach(key => { if (b[key]) f[key] = b[key].map((v, i) => A[key] ? M(A[key][i], v) : v); });
-  if (b.cb) f.cb = b.cb;   // 브레이크등 (켜짐/꺼짐은 보간하지 않는다)
+  if (b.cb) f.cb = b.cb; if (b.tbk !== undefined) f.tbk = b.tbk;   // 브레이크등 (켜짐/꺼짐은 보간하지 않는다)
   // 보행자: 걷던 프레임과 날아가는 프레임은 자세 기준이 달라(발 / 몸 가운데) 섞지 않는다
   if (b.bk) f.bk = b.bk.map((v, i) => A.bk ? M(A.bk[i], v) : v);
   if (b.pq) f.pq = b.pq.map((v, i) => A.pq ? M(A.pq[i], v) : v);
@@ -4385,6 +4401,12 @@ function drawPlan(f) {
   // 평면도 이름표는 '나'만 (사용자 결정): 앞차·다른 차·보행자는 이름 없이 그린다
   car(ts, tx, L.hl, L.hw, '#d5d0c4', '');
   G.cars.forEach((c, i) => { const cs = f.cs[i]; if (isFinite(cs)) car(cs, f.cx ? f.cx[i] : c.x, CAR_HL, CAR_HW, c.isHazard ? '#ff5a4e' : '#8a929c', '', false, f.cy ? f.cy[i] : 0); });
+  if (f.tbk > 0.5 && isFinite(f.ts)) {   // 앞차(큰 차) 브레이크등
+    const L0 = SC.truck, dir = L0.dir || 1, rx = X(f.ts - dir * L0.hl), r = Math.max(7, 1.6 * k);
+    [-0.6, 0.6].forEach(o => { const yy = Y((f.tx ?? L0.x) + o * L0.hw), gr = pctx.createRadialGradient(rx, yy, 0, rx, yy, r);
+      gr.addColorStop(0, 'rgba(255,90,60,1)'); gr.addColorStop(0.35, 'rgba(255,40,24,.75)'); gr.addColorStop(1, 'rgba(255,30,20,0)');
+      pctx.fillStyle = gr; pctx.beginPath(); pctx.arc(rx, yy, r, 0, 7); pctx.fill(); });
+  }
   if (f.cb) G.cars.forEach((c, i) => {   // 브레이크등: 브레이크를 밟은 차 뒤쪽 양 모서리에 붉은 빛 번짐 (주행 기록의 cb)
     const cs = f.cs[i]; if (!f.cb[i] || !isFinite(cs)) return;
     const cxv = f.cx ? f.cx[i] : c.x, rx = X(cs - CAR_HL), r = Math.max(7, 1.6 * k);
@@ -4653,7 +4675,7 @@ function loop(now) {
       const cs = G.cars.map((c, i) => { const n = c.active ? c.s : NaN; return isFinite(n) ? L(pr && pr.cs[i], n) : n; });
       const cx = G.cars.map((c, i) => L(pr && pr.cx[i], c.x)), cy = G.cars.map(c => c.yaw || 0);
       const pd = pedFrame();
-      drawWorld({ t: G.t, ps, px, ts, bs, cs, cx, cy, cb: SC.road.exit ? G.cars.map(c => c.brk ? 1 : 0) : undefined, pd, bk: bikeFrame() }, false); driveCamera(dt, ps, px, L(pr && pr.py, p.yaw || 0)); updateHUD(); drawNav(ps, px); engine(p.v, true); brakeSound(keys.down, p.v); curbSound(G.curb, p.v);   // cb: 브레이크등 (운전 중에도)
+      drawWorld({ t: G.t, ps, px, ts, bs, cs, cx, cy, cb: G.cars.map(c => c.brk ? 1 : 0), tbk: G.truck.brk ? 1 : 0, pd, bk: bikeFrame() }, false); driveCamera(dt, ps, px, L(pr && pr.py, p.yaw || 0)); updateHUD(); drawNav(ps, px); engine(p.v, true); brakeSound(keys.down, p.v); curbSound(G.curb, p.v);   // cb: 브레이크등 (운전 중에도)
     }
   } else if (state === 'countdown') {
     const p = G.p; G.cd -= dt;
