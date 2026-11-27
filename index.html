@@ -3119,7 +3119,9 @@ let audio = null, soundOn = true;
 function initAudio() {
   if (audio || !soundOn) return;
   try {
-    const ac = new (window.AudioContext || window.webkitAudioContext)();
+    // 폰: 미리 받아 두는 소리 데이터를 넉넉하게 (화면 그리기로 바쁠 때 소리가 '탁' 하고 끊기지 않게. 소리가 아주 조금 늦게 나올 수 있다)
+    const phone = matchMedia('(pointer: coarse)').matches, AC = window.AudioContext || window.webkitAudioContext;
+    let ac; try { ac = phone ? new AC({ latencyHint: 'playback' }) : new AC(); } catch (e) { ac = new AC(); }
     const osc = ac.createOscillator(); osc.type = 'sawtooth';
     const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 340;
     const g = ac.createGain(); g.gain.value = 0;
