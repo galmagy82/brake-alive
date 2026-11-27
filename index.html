@@ -3830,7 +3830,9 @@ function crash(type, car) {
   const fl = $('flash'); fl.style.transition = 'none'; fl.style.opacity = '0.9'; void fl.offsetWidth; fl.style.transition = 'opacity .45s ease-out'; fl.style.opacity = '0';
   // 깨진 정도: 차 충돌은 내 차가 받은 충격(Δv), 보행자는 내 차 속도. 시속 10km → 0, 80km 이상 → 1
   const meB = G.ch.byId.me, hitKmh = type === 'ped' || !meB.impacts.length ? p.v * 3.6 : meB.impacts[0].dv * 3.6;
-  drawCracks(clamp((hitKmh - 10) / 70, 0, 1));
+  // 앞유리 금은 충돌 장면을 먼저 보여 준 뒤 그린다 (같은 프레임에 그리면 폰에서 그 순간 화면이 멈칫한다)
+  const crackSev = clamp((hitKmh - 10) / 70, 0, 1), crackRound = G;
+  setTimeout(() => { if (G === crackRound && (state === 'crashing' || state === 'crashed')) drawCracks(crackSev); }, 40);
 }
 // 정면충돌 Δv(km/h)에 따른 사망 확률. Ayuningtyas 외(2026) 전체 자료 모델
 // (1%: 23.3, 5%: 51.3, 10%: 64.0 km/h, OR 1.06/km/h)에 맞춘 로지스틱 곡선.
