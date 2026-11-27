@@ -3151,6 +3151,7 @@ function initAudio() {
     ns.connect(clp); clp.connect(cam); cam.connect(rg); rg.connect(ac.destination);
     ns.start(); clfo.start();
     audio = { ac, osc, g, bg, sb1, sb2, absD, road, rg, clfo, nb, press: 0, lastT: ac.currentTime, chirped: false, kmh: 0 };
+    crashBufs(ac);   // 충돌·유리 소리 잡음 데이터를 미리 만들어 둔다
   } catch (e) { audio = null; }
 }
 function engine(v, on, vol) {   // vol: 크기 배율 (기본 1, 카운트다운 중에는 0.25)
@@ -3206,6 +3207,18 @@ function thud(gain) {
 }
 // 차량 충돌 소리 (합성): k = 세기 0~1. 여러 층을 겹친다
 // 1) 첫 충격 "빡"  2) 낮은 "쿵"  3) 금속이 찌그러지는 "콰지직"  4) 차체 울림  5) 파편이 떨어지는 소리
+// 충돌·유리 소리에 쓰는 잡음 데이터: 소리를 켤 때 한 번 만들어 두고 충돌 때는 꺼내 쓴다 (충돌 순간 계산이 몰려 소리가 끊기지 않게)
+function crashBufs(ac) {
+  if (audio.cb) return audio.cb;
+  const R = Math.random, metal = dur => noiseBuf(ac, dur, u => { const env = Math.pow(1 - u, 1.6), dens = 0.02 + 0.2 * (1 - u); return (R() < dens ? (R() * 2 - 1) : (R() * 2 - 1) * 0.12) * env; });
+  return (audio.cb = {
+    impact: noiseBuf(ac, 0.06, u => (R() * 2 - 1) * Math.pow(1 - u, 3)),
+    thud: noiseBuf(ac, 1.0, u => (R() * 2 - 1) * Math.pow(1 - u, 2.5)),
+    metal: [0.25 + 0.45 * 0.3, 0.25 + 0.45 * 0.65, 0.25 + 0.45 * 1].map(metal),   // 약·중·강
+    debris: Array.from({ length: 8 }, () => noiseBuf(ac, 0.01 + R() * 0.03, u => (R() * 2 - 1) * Math.pow(1 - u, 3))),
+    glass: Array.from({ length: 9 }, () => noiseBuf(ac, 0.05 + R() * 0.12, u => (R() * 2 - 1) * Math.pow(1 - u, 2))),
+  });
+}
 function noiseBuf(ac, sec, fn) {
   const len = Math.max(1, Math.floor(ac.sampleRate * sec)), buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
   for (let i = 0; i < len; i++) d[i] = fn(i / len, i);
@@ -3216,7 +3229,7 @@ function crashFx(ac) {
   if (audio.crashFx) return audio.crashFx;
   const inp = ac.createGain();
   // 잔향: 코드로 만든 울림 데이터 (어둡게 깎은 잡음이 서서히 사라짐)
-  const sec = 2.0, len = Math.floor(ac.sampleRate * sec), ir = ac.createBuffer(2, len, ac.sampleRate);
+  const sec = matchMedia('(pointer: coarse)').matches ? 0.8 : 2.0, len = Math.floor(ac.sampleRate * sec), ir = ac.createBuffer(2, len, ac.sampleRate);   // 폰: 울림 0.8초 (가장 무거운 소리 처리라 충돌 때 소리가 끊겼다)
   for (let ch = 0; ch < 2; ch++) {
     const d = ir.getChannelData(ch); let lp = 0;
     for (let i = 0; i < len; i++) { lp += ((Math.random() * 2 - 1) - lp) * 0.12; d[i] = lp * Math.pow(1 - i / len, 2.2) * 3; }
@@ -3236,6 +3249,9 @@ function crashSound(k) {
   if (!audio || !soundOn) return;
   const ac = audio.ac, t0 = ac.currentTime + 0.005, R = Math.random;
   k = clamp(k, 0.2, 1);
+  // 연쇄 충돌: 직전 충돌음 뒤 0.15초 안에 오는 충돌은 그보다 확실히 클 때만 소리를 낸다 (한꺼번에 겹쳐 소리 처리가 밀리지 않게)
+  if (audio.lastCrashT !== undefined && ac.currentTime - audio.lastCrashT < 0.15 && k < audio.lastCrashK * 1.2) return;
+  audio.lastCrashT = ac.currentTime; audio.lastCrashK = k;
   // 전체 출력: 여러 소리가 겹쳐도 찢어지지 않게 압축
   const out = ac.createDynamicsCompressor(); out.threshold.value = -14; out.ratio.value = 6; out.attack.value = 0.002; out.release.value = 0.25;
   const master = ac.createGain(); master.gain.value = 0.6 + 0.5 * k;
@@ -3247,22 +3263,19 @@ function crashSound(k) {
   };
   const filt = (type, f, q) => { const b = ac.createBiquadFilter(); b.type = type; b.frequency.value = f; if (q) b.Q.value = q; return b; };
   // 1) 첫 충격: 짧고 두꺼운 "퍽" (중저음 잡음)
-  play(noiseBuf(ac, 0.06, u => (R() * 2 - 1) * Math.pow(1 - u, 3)), [filt('bandpass', 420, 0.8)], t0, 1.2 * k);
+  const CB = crashBufs(ac);
+  play(CB.impact, [filt('bandpass', 420, 0.8)], t0, 1.2 * k);
   // 2) 낮은 쿵: 음높이가 떨어지는 사인파 + 낮은 잡음
   {
     const o = ac.createOscillator(), g = ac.createGain(); o.type = 'sine';
     o.frequency.setValueAtTime(85, t0); o.frequency.exponentialRampToValueAtTime(28, t0 + 0.5);
     g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(1.3 * k, t0 + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.7);
     o.connect(g); g.connect(out); o.start(t0); o.stop(t0 + 0.75);
-    play(noiseBuf(ac, 1.0, u => (R() * 2 - 1) * Math.pow(1 - u, 2.5)), [filt('lowpass', 150)], t0, 1.3 * k);
+    play(CB.thud, [filt('lowpass', 150)], t0, 1.3 * k);
   }
   // 3) 금속 찌그러짐: 띄엄띄엄 튀는 잡음 알갱이를 공진 필터 여러 개에 통과시킨다
   {
-    const dur = 0.25 + 0.45 * k;
-    const buf = noiseBuf(ac, dur, u => {
-      const env = Math.pow(1 - u, 1.6), dens = 0.02 + 0.2 * (1 - u);
-      return (R() < dens ? (R() * 2 - 1) : (R() * 2 - 1) * 0.12) * env;
-    });
+    const buf = CB.metal[k < 0.47 ? 0 : k < 0.82 ? 1 : 2];   // 세기에 맞는 길이의 미리 만든 금속음
     [180 + R() * 80, 380 + R() * 150, 800 + R() * 300].forEach((f, i) => play(buf, [filt('bandpass', f, 2 + R() * 3)], t0 + 0.004 * i, [1.3, 0.9, 0.45][i] * k));
   }
   // 4) 차체 울림: 배음이 어긋난 금속 울림 (짧고 작게)
@@ -3280,16 +3293,14 @@ function crashSound(k) {
     const n = Math.round(2 + 4 * k);
     for (let j = 0; j < n; j++) {
       const at = t0 + 0.1 + Math.pow(R(), 1.5) * (0.5 + 0.5 * k), len = 0.01 + R() * 0.03;
-      play(noiseBuf(ac, len, u => (R() * 2 - 1) * Math.pow(1 - u, 3)), [filt('bandpass', 700 + R() * 900, 4)], at, (0.12 + R() * 0.15) * k);
+      play(CB.debris[Math.floor(R() * CB.debris.length)], [filt('bandpass', 700 + R() * 900, 4)], at, (0.12 + R() * 0.15) * k);
     }
   }
 }
 function glassSound() {   // 유리가 깨지고 흩어지는 소리
   if (!audio || !soundOn) return; const ac = audio.ac;
   for (let k = 0; k < 9; k++) {
-    const st = ac.currentTime + 0.02 + k * 0.05 + Math.random() * 0.06, len = Math.floor(ac.sampleRate * (0.05 + Math.random() * 0.12));
-    const buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
-    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2);
+    const st = ac.currentTime + 0.02 + k * 0.05 + Math.random() * 0.06, buf = crashBufs(ac).glass[k];   // 미리 만든 유리 조각 소리
     const src = ac.createBufferSource(); src.buffer = buf; const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 2500 + Math.random() * 3000;
     const g = ac.createGain(); g.gain.value = (k === 0 ? 0.25 : 0.11) * (1 - k / 12); src.connect(hp); hp.connect(g); g.connect(ac.destination); src.start(st);
   }
