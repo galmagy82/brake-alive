@@ -2034,6 +2034,11 @@ function buildSideRoadProps() {
     }
   });
   building(grp, SR.s - SR.w / 2 - 6, SR.s + SR.w / 2 + 6, x1, x1 + 10, 2.9 * 3 + 0.4, 'brick', true);   // 막다른 끝
+  // 리플레이: 06 골목처럼 건물은 숨기고 건물 터(30cm 회색 판)만 보인다 (alleyReplayView)
+  const foot = new THREE.Group(), plateMat = lambert(0x5d6066);
+  grp.children.forEach(m => { const gp = m.geometry && m.geometry.parameters; if (!gp || !(gp.width >= 3) || !(gp.depth >= 3)) return;
+    const pl = new THREE.Mesh(new THREE.BoxGeometry(gp.width - 0.3, 0.3, gp.depth - 0.3), plateMat); pl.position.set(m.position.x, 0.15, m.position.z); foot.add(pl); });
+  foot.visible = false; world.add(foot); alleyBld = grp; alleyFoot = foot;
   // 1차로 노면 화살표: 좌회전(앞으로 가다 왼쪽) + 유턴(왼쪽으로 돌아 아래로)
   const arrowM = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -6, map: texFrom(160, 512, g => {
     g.fillStyle = 'rgba(232,232,224,.92)'; g.strokeStyle = 'rgba(232,232,224,.92)'; g.lineCap = 'butt';
@@ -3472,6 +3477,8 @@ function alleyCutMove(c, dt) {
   const A = c.alleyCut; if (G.t < A.go) return;
   if (!c.goEv) { c.goEv = true; ev('alleyGo', { idx: c.idx }); }
   c.v = Math.min(A.vMax, c.v + A.acc * dt);
+  // 1차로(좌회전 차로)에서는 정지선 앞(앞범퍼가 정지선 0.3m 뒤)에 서서 좌회전 신호를 기다린다 (내 쪽은 직진 녹색불). 3m/s²로 부드럽게 줄인다
+  const stopS = R.intersection - R.half - 3.6 - 0.3 - CAR_HL; c.v = Math.min(c.v, Math.sqrt(2 * 3 * Math.max(0, stopS - c.s)));
   const a = A.ang * Math.PI / 180, x = c.x, phi = x >= R.half + 0.5 ? Math.PI / 2 : x > 7 ? a + (Math.PI / 2 - a) * (x - 7) / (R.half + 0.5 - 7) : x > 3 ? a : Math.max(0, a * (x - 1.75) / 1.25);
   if (!c.crossEv && x <= 7) { c.crossEv = true; ev('alleyCross', { idx: c.idx }); }
   c.s += c.v * Math.cos(phi) * dt; c.x = Math.max(1.75, c.x - c.v * Math.sin(phi) * dt); c.yaw = phi;
