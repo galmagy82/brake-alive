@@ -3346,7 +3346,7 @@ function dropMove(c, dt) {
   if (c.cut && c.x > 1.8) c.v = Math.max(0, c.v - (D.cutDec || 0) * dt);   // 차로를 옮기는 동안은 살짝 감속 (cutDec m/s²)
   else if (c.cut) c.v = Math.min(V_MAX, c.v + 4.2 * (1 - c.v / (V_MAX * 1.08)) * D.acc2 * dt);   // 1차로에 들어온 뒤: 내 차와 같은 보통 가속으로 다시 속도를 올린다 (급가속 없음)
   else if (G.t - SC.signal.greenAt < D.boostT) c.v = Math.min(V_MAX, c.v + 4.2 * (1 - c.v / (V_MAX * 1.08)) * D.acc1 * dt);
-  else c.v += (c.vRef * D.acc2 - c.v) * Math.min(1, dt * 1.5);
+  else { const tv = c.vRef * D.acc2; c.v = tv < c.v ? Math.max(tv, c.v - 0.4 * dt) : c.v + (tv - c.v) * Math.min(1, dt * 1.5); }   // 앞서 나간 뒤 속도 맞추기: 줄일 때는 0.4m/s² 이하로만 (페달에서 발만 뗀 정도, 브레이크등 안 켜짐)
   if (c.blinkT === undefined && c.s >= D.blinkS) { c.blinkT = G.t; ev('dropBlink', { idx: c.idx }); }
   if (!c.cut && c.blinkT !== undefined && G.t >= c.blinkT + D.delay) { c.cut = true; ev('dropCut', { idx: c.idx }); }
   const x0 = c.x;
