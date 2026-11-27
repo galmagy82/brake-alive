@@ -2649,9 +2649,19 @@ const PED_A = -5.725, PED_B = 0.08903;
 const pedRisk = v => 1 / (1 + Math.exp(-(PED_A + PED_B * v)));
 // Level of detail reference = player position of the frame being drawn (set in drawWorld)
 const lodRef = { s: 0, x: 0 }, LOD_NEAR = 40, CAR_FAR = 300;
+// 도심 도로 인도 높이 (차도 0, 인도 0.15m). 인도가 끊긴 곳(교차로 가로 도로, 합류 진입로 쪽)과 보도 없는 도로는 0
+function walkH(s, x) {
+  if (R.type !== 'city4' || R.noWalk) return 0;
+  const ax = Math.abs(x), HW = R.half; if (ax <= HW + 0.2 || ax > HW + 3) return 0;
+  if (R.intersection && Math.abs(s - R.intersection) < HW + 0.2) return 0;
+  const M = R.merge; if (M && x > 0 && s > M.s0 - M.len * Math.cos(M.ang) - 4 && s < M.s1 + M.taper) return 0;
+  return 0.15;
+}
 function placeVehicle(v, s, x, flip, yaw, pitchAdd) {
   // 도로 밖(잔디·언덕)으로 밀려난 차는 실제 땅 높이와 옆 기울기를 따른다 (도로 위에서는 땅 높이 보정이 0)
-  const gb = R.type === 'alley' ? 0 : bank(s, x), roll = R.type === 'alley' ? 0 : Math.atan((bank(s, x + 0.6) - bank(s, x - 0.6)) / 1.2);
+  // 인도(15cm 턱) 위로 올라간 바퀴: 왼쪽·오른쪽 바퀴 자리의 인도 높이를 따로 보고, 둘 다면 올리고 한쪽만이면 기울인다
+  const hL = walkH(s, x - 0.8), hR = walkH(s, x + 0.8);
+  const gb = (R.type === 'alley' ? 0 : bank(s, x)) + (hL + hR) / 2, roll = (R.type === 'alley' ? 0 : Math.atan((bank(s, x + 0.6) - bank(s, x - 0.6)) / 1.2)) + Math.atan((hR - hL) / 1.6);
   const o = v.outer || v; wpos(s, x, h(s) + gb, o.position);
   o.rotation.order = 'YXZ'; o.rotation.set(Math.atan(slope(s)) + (pitchAdd || 0), (yaw || 0) - wyaw(s), roll);
   const host = v.inner || o, wl = host.wheelList || o.wheelList;
