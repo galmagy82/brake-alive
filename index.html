@@ -1010,7 +1010,7 @@ function totalText() {
 /* ---------- 렌더러와 장면 ---------- */
 const canvas = $('gl');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));   // 폰도 PC처럼 최대 2배 (예전 폰 1.5배: 촘촘한 폰 화면에서 흐릿했다. 버벅이면 자동 해상도 조절이 낮춘다)
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, matchMedia('(pointer: coarse)').matches ? 1.5 : 2));   // 터치 기기(폰·태블릿) 1.5배, PC 2배 (사용자 결정)
 // 색감: 영화식 톤 매핑(ACES)으로 밝은 곳이 부드럽게 눌리고 명암이 살아나게 한다. 주소에 ?look=old를 붙이면 예전 색감
 const LOOK_OLD = (() => { try { return new URLSearchParams(location.search).get('look') === 'old'; } catch (e) { return false; } })();
 const BASE_EXPOSURE = 0.95;
@@ -4694,7 +4694,7 @@ showTitle();   // 첫 화면
 let last = performance.now(), idleT = 0;
 // 자동 해상도: 1초마다 평균 프레임을 재서, 느리면 해상도를 낮추고(빠르게) 여유가 있으면 올린다(천천히)
 // 범위: 휴대폰 0.75~1.5배, PC 1~2배 (기기 화면 배율을 넘지 않음). 주소에 ?fps를 붙이면 왼쪽 아래에 표시
-const AR = { max: Math.min(window.devicePixelRatio || 1, 2), min: matchMedia('(pointer: coarse)').matches ? 0.75 : 1, n: 0, sum: 0, good: 0, cool: 0 };
+const AR = { max: Math.min(window.devicePixelRatio || 1, matchMedia('(pointer: coarse)').matches ? 1.5 : 2), min: matchMedia('(pointer: coarse)').matches ? 0.75 : 1, n: 0, sum: 0, good: 0, cool: 0 };
 AR.pr = AR.max; AR.min = Math.min(AR.min, AR.max);
 const SHOW_FPS = (() => { try { return new URLSearchParams(location.search).has('fps'); } catch (e) { return false; } })();
 let fpsEl = null;
@@ -4706,7 +4706,7 @@ function adaptRes(rawDt) {
   if (fpsEl) fpsEl.textContent = `${fps.toFixed(0)} fps · ${AR.pr.toFixed(2)}x · ${renderer.info.render.calls} draws`;
   if (AR.cool > 0) { AR.cool--; return; }
   let pr = AR.pr;
-  if (fps < 55 && pr > AR.min) { pr = Math.max(AR.min, pr * 0.85); AR.good = 0; }   // 55 아래로 떨어지면 해상도를 조금 낮춘다 (예전 48: 53~60을 오가는 기기는 낮추지 않아 계속 빠듯했다)
+  if (fps < 48 && pr > AR.min) { pr = Math.max(AR.min, pr * 0.85); AR.good = 0; }   // 48 아래로 떨어질 때만 해상도를 낮춘다 (55로 했더니 폰 화질이 너무 떨어졌다)
   else if (fps >= 58) { if (++AR.good >= 6 && pr < AR.max) { pr = Math.min(AR.max, pr * 1.1); AR.good = 0; } }   // 6초 동안 여유가 있어야 다시 올린다 (오르락내리락 방지)
   else AR.good = 0;
   if (Math.abs(pr - AR.pr) > 0.01) { AR.pr = pr; renderer.setPixelRatio(pr); resize(); AR.cool = 2; }
