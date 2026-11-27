@@ -4706,8 +4706,8 @@ function adaptRes(rawDt) {
   if (fpsEl) fpsEl.textContent = `${fps.toFixed(0)} fps · ${AR.pr.toFixed(2)}x · ${renderer.info.render.calls} draws`;
   if (AR.cool > 0) { AR.cool--; return; }
   let pr = AR.pr;
-  if (fps < 48 && pr > AR.min) { pr = Math.max(AR.min, pr * 0.85); AR.good = 0; }
-  else if (fps >= 57) { if (++AR.good >= 4 && pr < AR.max) { pr = Math.min(AR.max, pr * 1.1); AR.good = 0; } }
+  if (fps < 55 && pr > AR.min) { pr = Math.max(AR.min, pr * 0.85); AR.good = 0; }   // 55 아래로 떨어지면 해상도를 조금 낮춘다 (예전 48: 53~60을 오가는 기기는 낮추지 않아 계속 빠듯했다)
+  else if (fps >= 58) { if (++AR.good >= 6 && pr < AR.max) { pr = Math.min(AR.max, pr * 1.1); AR.good = 0; } }   // 6초 동안 여유가 있어야 다시 올린다 (오르락내리락 방지)
   else AR.good = 0;
   if (Math.abs(pr - AR.pr) > 0.01) { AR.pr = pr; renderer.setPixelRatio(pr); resize(); AR.cool = 2; }
 }
