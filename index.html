@@ -1010,7 +1010,7 @@ function totalText() {
 /* ---------- 렌더러와 장면 ---------- */
 const canvas = $('gl');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, matchMedia('(pointer: coarse)').matches ? 1.5 : 2));   // 터치 기기(폰·태블릿) 1.5배, PC 2배 (사용자 결정)
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, matchMedia('(pointer: coarse)').matches ? 1.5 : 2));
 // 색감: 영화식 톤 매핑(ACES)으로 밝은 곳이 부드럽게 눌리고 명암이 살아나게 한다. 주소에 ?look=old를 붙이면 예전 색감
 const LOOK_OLD = (() => { try { return new URLSearchParams(location.search).get('look') === 'old'; } catch (e) { return false; } })();
 const BASE_EXPOSURE = 0.95;
@@ -2194,8 +2194,7 @@ function carGeo(type) {
 }
 const CAR_GLASS_M = new THREE.MeshPhongMaterial({ color: 0x1a2632, shininess: 90, specular: 0x9aa4ad });
 const CAR_TRIM_M = lambert(0x1d1f22), CAR_HEAD_M = basic(0xfff3d1), CAR_TAIL_M = basic(0x8a1010), CAR_PLATE_M = basic(0xe9e3c9);
-const LIVE_F = { cs: [], cx: [], cy: [], cb: [] };   // 운전 중 화면 그리기용 (다시 쓰는 묶음)
-const CAR_BRAKE_M = basic(0xff3a26), _bgv = new THREE.Vector3(), BRAKE_GLOW_N = 12, BRAKE_GLOW_R = 150, BRAKE_CANDS = [], BRAKE_SORT = (a, b) => a._bd - b._bd;   // 브레이크를 밟은 차의 밝은 미등
+const CAR_BRAKE_M = basic(0xff3a26), _bgv = new THREE.Vector3(), BRAKE_GLOW_N = 12, BRAKE_GLOW_R = 150;   // 브레이크를 밟은 차의 밝은 미등
 function makeCar(color, lights, type) {
   if (LOOK_OLD) return makeCarOld(color, lights);
   type = type || CAR_TYPE_ORDER[carTypeK++ % CAR_TYPE_ORDER.length];
@@ -3463,9 +3462,7 @@ function pathPose(P, u) {
 function step(dt) {
   const p = G.p, tr = G.truck, hz = G.hazard;
   const onPath = !!(p.path && !p.path.done);
-  // 화면 보간용 직전 상태 (매번 새 묶음을 만들지 않고 덮어쓴다: 폰에서 메모리 정리로 생기는 미세한 끊김 줄이기)
-  const PV = G.prev || (G.prev = { cs: [], cx: [] }); PV.s = p.s; PV.x = p.x; PV.py = p.yaw || 0; PV.ts = tr.s; PV.bs = G.bait ? G.bait.s : undefined;
-  PV.cs.length = PV.cx.length = G.cars.length; for (let i = 0; i < G.cars.length; i++) { const c = G.cars[i]; PV.cs[i] = c.active ? c.s : NaN; PV.cx[i] = c.x; }
+  G.prev = { s: p.s, x: p.x, py: p.yaw || 0, ts: tr.s, bs: G.bait ? G.bait.s : undefined, cs: G.cars.map(c => c.active ? c.s : NaN), cx: G.cars.map(c => c.x) };   // 화면 보간용 직전 상태
   G.t += dt; const t = G.t;
   // 교차로 우회전(09): 정해진 경로(가로 도로 2차로 → 타원 회전 → 큰길 2차로)를 자동으로 따라간다. 브레이크만 된다
   // 도는 곳이 가까워지면 vturn까지 저절로 줄인다 (남은 거리에 맞춘 감속, 최대 2.5m/s²)
@@ -3657,7 +3654,7 @@ function drawWorld(f, showPlayer) {
   playerMesh.outer.visible = showPlayer;
   if (showPlayer) placeVehicle(playerMesh, f.ps, f.px, false, f.py || 0);
   const md = damageAt('me', f.t); playerMesh.inner.scale.z = (md.front || md.rear) ? 0.8 : 1;   // 찌그러진 차체
-  BRAKE_CANDS.length = 0; const brakeCands = BRAKE_CANDS;   // 브레이크를 밟은 차 (다시 쓰는 목록)
+  const brakeCands = [];   // 브레이크를 밟은 차 [거리, 모습]
   G.cars.forEach((c, i) => {
     const m = carMeshes[i], s = f.cs[i];
     m.outer.visible = isFinite(s) && Math.abs(s - f.ps) < CAR_FAR;
@@ -3668,7 +3665,7 @@ function drawWorld(f, showPlayer) {
       const on = !!(f.cb && f.cb[i]);
       if (m.tailM === undefined) m.tailM = m.inner.children.find(o => o.material === CAR_TAIL_M) || null;
       if (m.tailM) m.tailM.material = on ? CAR_BRAKE_M : CAR_TAIL_M;
-      if (on) { m._bd = Math.abs(s - f.ps); brakeCands.push(m); }
+      if (on) brakeCands.push([Math.abs(s - f.ps), m]);
     }
     if (m.brakeGlow) m.brakeGlow.visible = false;
     if (m.blink) { const cy = f.cy ? f.cy[i] : 0, cxv = f.cx ? f.cx[i] : c.x;
@@ -3676,9 +3673,9 @@ function drawWorld(f, showPlayer) {
       m.blink.visible = isFinite(s) && f.t >= 0 && on && Math.floor(f.t * 3) % 2 === 0; }
   });
   // 브레이크등 빛 번짐: 내 차에서 BRAKE_GLOW_R m 안, 가까운 BRAKE_GLOW_N대까지만 (많은 차가 한꺼번에 서도 그리기 부담이 늘지 않게)
-  if (brakeCands.length > 1) brakeCands.sort(BRAKE_SORT);
+  brakeCands.sort((a, b) => a[0] - b[0]);
   for (let k = 0; k < brakeCands.length && k < BRAKE_GLOW_N; k++) {
-    const m = brakeCands[k], d = m._bd; if (d > BRAKE_GLOW_R || !m.dims) break;
+    const [d, m] = brakeCands[k]; if (d > BRAKE_GLOW_R || !m.dims) break;
     if (!m.brakeGlow) { const D = m.dims, gg = new THREE.Group();
       [-1, 1].forEach(sg => { const hh = halo(1.2, 0.75); hh.material.color.setHex(0xff2a18); hh.position.set(sg * (D.W / 2 - 0.3), D.tail, D.L / 2 + 0.22); gg.add(hh); });
       m.inner.add(gg); m.brakeGlow = gg; }
@@ -3688,7 +3685,7 @@ function drawWorld(f, showPlayer) {
   }
   pedMeshes.forEach((pm, i) => {
     const on = !!(f.pd && f.pd.length >= (i + 1) * 6); pm.outer.visible = on; if (!on) return;
-    const o6 = i * 6, qs = f.pd[o6], qx = f.pd[o6 + 1], qy = f.pd[o6 + 2], qr = f.pd[o6 + 3], qph = f.pd[o6 + 4], mode = f.pd[o6 + 5], sc = pm.outer.scale.x;
+    const [qs, qx, qy, qr, qph, mode] = f.pd.slice(i * 6, i * 6 + 6), sc = pm.outer.scale.x;
     wpos(qs, qx, h(qs) + qy, pm.outer.position);   // 걷는 중: qy = 0(발), 날아가는 중: qy = 몸 가운데 높이
     if (pm.dizzy && pm.dizzy.visible) { pm.dizzy.material.opacity = mode > 0.5 ? 0 : 1; pm.dizzy.material.rotation = f.t * 2.5; }   // 쓰러지면 표시를 감춘다
     if (mode > 0.5) {   // 부딪혀 날아가거나 쓰러진 상태: 몸 가운데를 축으로 돈다
@@ -4706,15 +4703,13 @@ function adaptRes(rawDt) {
   if (fpsEl) fpsEl.textContent = `${fps.toFixed(0)} fps · ${AR.pr.toFixed(2)}x · ${renderer.info.render.calls} draws`;
   if (AR.cool > 0) { AR.cool--; return; }
   let pr = AR.pr;
-  if (fps < 48 && pr > AR.min) { pr = Math.max(AR.min, pr * 0.85); AR.good = 0; }   // 48 아래로 떨어질 때만 해상도를 낮춘다 (55로 했더니 폰 화질이 너무 떨어졌다)
-  else if (fps >= 58) { if (++AR.good >= 6 && pr < AR.max) { pr = Math.min(AR.max, pr * 1.1); AR.good = 0; } }   // 6초 동안 여유가 있어야 다시 올린다 (오르락내리락 방지)
+  if (fps < 48 && pr > AR.min) { pr = Math.max(AR.min, pr * 0.85); AR.good = 0; }
+  else if (fps >= 57) { if (++AR.good >= 4 && pr < AR.max) { pr = Math.min(AR.max, pr * 1.1); AR.good = 0; } }
   else AR.good = 0;
   if (Math.abs(pr - AR.pr) > 0.01) { AR.pr = pr; renderer.setPixelRatio(pr); resize(); AR.cool = 2; }
 }
 function loop(now) {
   requestAnimationFrame(loop);
-  // 120Hz 같은 고주사율 화면: 10ms 안에 다시 오면 건너뛴다 → 120Hz는 초당 60번, 144Hz는 72번만 그린다 (계산은 원래 초당 60번이라 움직임은 같다)
-  if (last && now - last < 10) return;
   adaptRes((now - last) / 1000);
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (needRotate() && state !== 'title' && state !== 'select' && state !== 'brief') {
@@ -4730,11 +4725,10 @@ function loop(now) {
       // 차 방향도 위치처럼 직전 계산과 이어 붙인다 (우회전 중 화면 떨림 방지)
       const L = (o, n) => (pr && isFinite(o)) ? o + (n - o) * a : n;
       const ps = L(pr && pr.s, p.s), px = L(pr && pr.x, p.x), ts = L(pr && pr.ts, G.truck.s), bs = G.bait ? L(pr && pr.bs, G.bait.s) : undefined;
-      // 화면 그리기용 목록은 매 프레임 새로 만들지 않고 덮어써서 다시 쓴다 (폰에서 메모리 정리로 생기는 미세한 끊김 줄이기)
-      const LF = LIVE_F, n = G.cars.length; LF.cs.length = LF.cx.length = LF.cy.length = LF.cb.length = n;
-      for (let i = 0; i < n; i++) { const c = G.cars[i], v = c.active ? c.s : NaN; LF.cs[i] = isFinite(v) ? L(pr && pr.cs[i], v) : v; LF.cx[i] = L(pr && pr.cx[i], c.x); LF.cy[i] = c.yaw || 0; LF.cb[i] = c.brk ? 1 : 0; }
-      LF.t = G.t; LF.ps = ps; LF.px = px; LF.ts = ts; LF.bs = bs; LF.tbk = G.truck.brk ? 1 : 0; LF.pd = pedFrame(); LF.bk = bikeFrame();
-      drawWorld(LF, false); driveCamera(dt, ps, px, L(pr && pr.py, p.yaw || 0)); updateHUD(); drawNav(ps, px); engine(p.v, true); brakeSound(keys.down, p.v); curbSound(G.curb, p.v);   // cb: 브레이크등 (운전 중에도)
+      const cs = G.cars.map((c, i) => { const n = c.active ? c.s : NaN; return isFinite(n) ? L(pr && pr.cs[i], n) : n; });
+      const cx = G.cars.map((c, i) => L(pr && pr.cx[i], c.x)), cy = G.cars.map(c => c.yaw || 0);
+      const pd = pedFrame();
+      drawWorld({ t: G.t, ps, px, ts, bs, cs, cx, cy, cb: G.cars.map(c => c.brk ? 1 : 0), tbk: G.truck.brk ? 1 : 0, pd, bk: bikeFrame() }, false); driveCamera(dt, ps, px, L(pr && pr.py, p.yaw || 0)); updateHUD(); drawNav(ps, px); engine(p.v, true); brakeSound(keys.down, p.v); curbSound(G.curb, p.v);   // cb: 브레이크등 (운전 중에도)
     }
   } else if (state === 'countdown') {
     const p = G.p; G.cd -= dt;
