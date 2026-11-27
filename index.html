@@ -938,7 +938,10 @@ const SCENARIOS = [
     truck: { type: 'truck', label: '화물차', parked: true, s: 5000, x: 40, up: 0, flat: 0, down: 0, mass: 6, hl: 5, hw: 1.25, height: 3.5 },
     oncoming: [
       // 골목 차: 앞부분이 인도 쪽으로 나온 채 서 있다가 go초에 출발 (가속 acc로 vMax까지), 비스듬히(차로 사이 각도 ang도) 1차로로 들어가 교차로로 간다
-      { label: '골목에서 나온 차', hazard: true, color: 0x6d2a2a, s: 180, x: 10.5 + 0.5 + 2.2, v: 0, alleyCut: { go: 5.0, acc: 3, vMax: 10, ang: 35 } },
+      // creep: at초부터 초속 v로 슬금슬금 나와 차 중심이 toX(앞부분이 3차로에 약 1m 걸침)에서 멈칫한 뒤, go초에 출발
+      { label: '골목에서 나온 차', hazard: true, color: 0x6d2a2a, s: 180, x: 10.5 + 0.5 + 2.2, v: 0, alleyCut: { go: 5.0, acc: 3, vMax: 10, creep: { at: 1.5, v: 0.5, toX: 11.7 } } },
+      // 1차로(좌회전 차로): 처음에 내 옆에서 시속 50km로 나란히 달리는 차 (앞차를 따라가고, 정지선 앞에서 선다)
+      { label: '1차로 차', fwd: true, follow: true, s: 2, x: 1.75, v: 13.9, color: 0xb9b9b4, stopAt: { s: 260 - 10.5 - 3.9, until: 1e9 } },
       // 맞은편 세 차로 배경 차
       ...Array.from({ length: 8 }, (_, k) => [{ s: 150 + k * 70, v: 14, x: -1.75 }, { s: 180 + k * 70, v: 13, x: -5.25 }, { s: 205 + k * 70, v: 12, x: -8.75 }]).flat(),
     ],
@@ -3474,7 +3477,12 @@ function brakeState(o, v, dt, parked) {
 // 15: 골목 차. go초에 출발해 acc로 vMax까지. 진행 방향(φ: +s에서 -x 쪽으로 기운 각)은 골목에서 나올 때 90°(큰길 쪽)에서
 // 3차로에 들어서며 ang°로 눕고, 1차로(x 1.75)에 거의 닿으면 0°(교차로 쪽)로 펴진다. 내 운전에는 반응하지 않는다
 function alleyCutMove(c, dt) {
-  const A = c.alleyCut; if (G.t < A.go) return;
+  const A = c.alleyCut;
+  if (G.t < A.go) {   // 출발 전: 슬금슬금 앞으로 나와 3차로에 걸친 채 멈칫한다
+    const C = A.creep; c.v = 0;
+    if (C && G.t >= C.at && c.x > C.toX) { c.v = C.v; c.x = Math.max(C.toX, c.x - C.v * dt); }
+    return;
+  }
   if (!c.goEv) { c.goEv = true; ev('alleyGo', { idx: c.idx }); }
   c.v = Math.min(A.vMax, c.v + A.acc * dt);
   // 1차로(좌회전 차로)에서는 정지선 앞(앞범퍼가 정지선 0.3m 뒤)에 서서 좌회전 신호를 기다린다 (내 쪽은 직진 녹색불). 3m/s²로 부드럽게 줄인다
