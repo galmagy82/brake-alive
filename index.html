@@ -2817,8 +2817,17 @@ function chainStep(dt) {
       if (sp <= d) { b.vs = 0; b.vx = 0; } else { b.vs -= b.vs / sp * d; b.vx -= b.vx / sp * d; }
       b.wr *= Math.exp(-2.2 * dt);
       if (Math.abs(b.yaw) < 1.2) b.vx += (-Math.sin(b.yaw) * b.vs - b.vx) * Math.min(1, 0.8 * dt);
-    } else if (C.tc > CR_REACT && b.brakeDec) {   // 부딪히지 않은 운전자: 반응 후 급제동
-      const d = b.brakeDec * dt; b.vs = Math.abs(b.vs) <= d ? 0 : b.vs - Math.sign(b.vs) * d;
+    } else {
+      // 차로를 바꾸던 차(05·13 합류, 14 출구에서 돌아온 차, 15 골목 차): 부딪히지 않았다면 가려던 차로(laneTo)까지 마저 들어가며 방향을 편다
+      // (그대로 두면 비스듬한 방향으로 계속 가서 중앙선을 넘었다)
+      if (b.car && b.car.laneTo !== undefined) {
+        const sp = Math.hypot(b.vs, b.vx), wantVx = clamp((b.car.laneTo - b.x) * 1.2, -2.5, 2.5) * Math.min(1, sp / 3);
+        b.vx += (wantVx - b.vx) * Math.min(1, 3 * dt); b.wr = 0;
+        if (b.vs > 0.1) b.yaw = Math.atan2(-b.vx, b.vs);
+      }
+      if (C.tc > CR_REACT && b.brakeDec) {   // 부딪히지 않은 운전자: 반응 후 급제동
+        const d = b.brakeDec * dt; b.vs = Math.abs(b.vs) <= d ? 0 : b.vs - Math.sign(b.vs) * d;
+      }
     }
     { const sp = Math.hypot(b.vs, b.vx); if (b.psp !== undefined && ((b.psp - sp) / dt > 0.5 || sp < 0.05)) b.brkT = G.t; b.brk = b.brkT !== undefined && G.t - b.brkT < 0.3; b.psp = sp; }   // 사고 후에도 브레이크등
     b.s += b.vs * dt; b.x = R.type === 'alley' ? clamp(b.x + b.vx * dt, -7, 7) : clamp(b.x + b.vx * dt, -(R.half + 60), R.half + 60); b.yaw += b.wr * dt;
@@ -3406,13 +3415,13 @@ function newRound() {
     if (o.jam) c.jam = true;
     if (o.startAt != null) Object.assign(c, { go0: o.startAt, acc: o.acc || 2.5, vT: o.v, v: 0 });   // 신호 대기: 정해진 시각(녹색불)에 출발                                        // 정체 줄의 차
     if (o.uturn) { Object.assign(c, { uturn: o.uturn, u: 0, x0: c.x, yaw: 0, v1: o.v, turning: false }); addBlinker(carMeshes[c.idx]); }   // 유턴 직전 왼쪽 깜빡이
-    if (o.merge) { Object.assign(c, { fwd: true, merge: true, u: o.u0, cutAt: o.cutAt, cutV: o.cutV, cutA: o.cutA }); Object.assign(c, mergePos(c.u)); }
-    if (o.alleyCut) Object.assign(c, { fwd: true, alleyCut: o.alleyCut, yaw: Math.PI / 2, v: 0 });   // 15: 골목에서 머리를 내민 차 (큰길 쪽 -x를 보고 서 있다)
+    if (o.merge) { Object.assign(c, { fwd: true, merge: true, u: o.u0, cutAt: o.cutAt, cutV: o.cutV, cutA: o.cutA, laneTo: 5.25 }); Object.assign(c, mergePos(c.u)); }
+    if (o.alleyCut) Object.assign(c, { fwd: true, alleyCut: o.alleyCut, yaw: Math.PI / 2, v: 0, laneTo: 1.75 });   // 15: 골목에서 머리를 내민 차 (큰길 쪽 -x를 보고 서 있다)
     if (o.laneStop) Object.assign(c, { laneStop: o.laneStop, vp: o.v });   // 나처럼 가속하다 정해진 곳에 서는 차
     if (o.pace) c.pace = o.pace;   // 14: 나처럼 계속 가속한다 (내가 브레이크를 밟지 않으면 나란히)
-    if (o.exitCut) Object.assign(c, { fwd: true, exitCut: o.exitCut, yaw: 0 });
+    if (o.exitCut) Object.assign(c, { fwd: true, exitCut: o.exitCut, yaw: 0, laneTo: 5.25 });
     if (o.exitQ) Object.assign(c, { fwd: true, exitQ: o.exitQ, vT: o.v, vp: o.v, yaw: 0 });   // 14: 출구로 가다 멈추는 3차로 차   // 14: 분기점에서 갈매기 무늬를 가로질러 끼어드는 차 (깜빡이 없음)
-    if (o.drop) { Object.assign(c, { fwd: true, drop: o.drop, vT: o.v, v: 0, yaw: 0 }); addBlinker(carMeshes[c.idx]); }   // 13: 줄어드는 차로에서 끼어드는 옆 차
+    if (o.drop) { Object.assign(c, { fwd: true, drop: o.drop, vT: o.v, v: 0, yaw: 0, laneTo: 1.75 }); addBlinker(carMeshes[c.idx]); }   // 13: 줄어드는 차로에서 끼어드는 옆 차
   });   // 처음부터 정해진 위치에서 달린다
   carMeshes.forEach(m => m.outer.visible = false);
   G.peds = (SC.peds || []).map(d => ({ ...d, x: d.x0, phase: 0, fly: null, hitSpeed: 0, outT: null, cv: d.v }));
