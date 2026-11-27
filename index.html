@@ -3996,7 +3996,7 @@ function crashUpdate(dt) {
 // sev: 사고 크기 0(약함)~1(심함). 차 충돌은 내 차가 받은 충격(Δv), 보행자는 내 차 속도로 정한다 (crash()에서 계산)
 function drawCracks(sev) {
   if (LOOK_OLD) return drawCracksOld();
-  const cv = $('cracks'), dpr = Math.min(window.devicePixelRatio || 1, 2), W = innerWidth, H = innerHeight;
+  const cv = $('cracks'), dpr = Math.min(window.devicePixelRatio || 1, 2) * (matchMedia('(pointer: coarse)').matches ? 0.5 : 1), W = innerWidth, H = innerHeight;   // 폰: 절반 해상도로 그려 늘린다 (그리는 일 1/4)
   cv.width = W * dpr; cv.height = H * dpr; const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
   const K = clamp(sev ?? 0.6, 0, 1), r = rng(Math.floor(G.t * 977)), R0 = Math.hypot(W, H);
   g.lineJoin = 'round'; g.lineCap = 'round';
